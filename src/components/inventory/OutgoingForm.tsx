@@ -2,9 +2,10 @@
 "use client";
 
 import * as React from "react";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,63 +17,105 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, ArrowUpFromLine, Ticket, PlusCircle, Trash2, User, ShoppingCart, PackageSearch } from "lucide-react";
+import { CalendarIcon, ArrowUpFromLine, Ticket, PlusCircle, Trash2, User, ShoppingCart, Search, XCircle, MinusCircle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Product, GatePass, GatePassItem } from "@/types";
+import type { Product, GatePass, GatePassItem as AppGatePassItem } from "@/types"; // Renamed to avoid conflict
 import { generateGatePass, type GenerateGatePassInput } from "@/ai/flows/generate-gate-pass";
 import { GatePassModal } from "@/components/gatepass/GatePassModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
-import { ref as databaseRef, onValue, off, update, push, serverTimestamp, get } from "firebase/database";
+import { ref as databaseRef, onValue, off, update, push, get } from "firebase/database";
 import { PasswordConfirmationModal } from "@/components/auth/PasswordConfirmationModal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-const gatePassItemSchema = z.object({
-  productId: z.string().min(1, "Product is required."),
-  quantity: z.coerce.number().min(1, "Quantity must be at least 1."),
-  // These are for display/reference in the form, not directly part of the schema sent to DB for items array
-  productName: z.string().optional(), 
-  availableStock: z.number().optional(),
-});
-
-const outgoingFormSchema = z.object({
-  items: z.array(gatePassItemSchema).min(1, "At least one product must be added."),
+// Schema for the form fields related to dispatch details (not individual items)
+const outgoingFormDetailsSchema = z.object({
   dispatchedAt: z.date({ required_error: "Date of dispatch is required." }),
   destination: z.string().min(3, "Destination is required."),
-  reason: z.string().min(3, "Reason for removal is required."),
-}).refine(data => { // Validate quantity against available stock for each item
-  for (const item of data.items) {
-    if (item.quantity > (item.availableStock ?? Infinity)) {
-      return false;
-    }
-  }
-  return true;
-}, {
-  message: "Quantity for one or more items exceeds available stock.",
-  path: ["items"], // General path, specific errors can be set dynamically
+  reason: z.string().min(3, "Reason for dispatch is required."),
 });
 
-type OutgoingFormValues = z.infer<typeof outgoingFormSchema>;
+type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
+
+// Interface for items selected in the cart
+interface SelectedItem extends AppGatePassItem {
+  availableStock: number;
+}
+
+// Internal Product Card component for the selection pane
+const ProductSelectionCard = ({ 
+  product, 
+  onSelect, 
+  quantityInCart 
+}: { 
+  product: Product, 
+  onSelect: (product: Product) => void, 
+  quantityInCart: number 
+}) => (
+  <Card
+    className={cn(
+      "cursor-pointer hover:shadow-lg transition-all duration-200 ease-in-out overflow-hidden",
+      product.currentStock === 0 ? "opacity-60 cursor-not-allowed bg-muted/50" : "hover:ring-2 hover:ring-primary",
+      quantityInCart > 0 ? "ring-2 ring-primary shadow-md" : "border"
+    )}
+    onClick={() => product.currentStock > 0 && onSelect(product)}
+    role="button"
+    aria-label={`Add ${product.name} to gate pass`}
+    tabIndex={product.currentStock > 0 ? 0 : -1}
+    onKeyDown={(e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && product.currentStock > 0) {
+        onSelect(product);
+      }
+    }}
+  >
+    <CardContent className="p-0">
+      <div className="aspect-[4/3] w-full relative">
+        <Image
+          src={product.imageUrl || `https://placehold.co/300x225.png?text=${encodeURIComponent(product.name.substring(0,15))}`}
+          alt={product.name}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+          data-ai-hint="product item"
+        />
+        {quantityInCart > 0 && (
+          <Badge variant="secondary" className="absolute top-2 right-2 bg-primary text-primary-foreground shadow">
+            {quantityInCart} In Cart
+          </Badge>
+        )}
+         {product.currentStock === 0 && (
+          <Badge variant="destructive" className="absolute bottom-2 left-2">
+            Out of Stock
+          </Badge>
+        )}
+      </div>
+      <div className="p-3">
+        <h3 className="font-semibold text-base truncate group-hover:text-primary" title={product.name}>{product.name}</h3>
+        <p className="text-xs text-muted-foreground mb-1">Stock: {product.currentStock}</p>
+        <p className="text-sm font-bold text-primary">Rs {product.unitPrice?.toFixed(2) || "N/A"}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
 
 export function OutgoingForm() {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
 
-  const [products, setProducts] = React.useState<Product[]>([]);
+  const [allProducts, setAllProducts] = React.useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = React.useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = React.useState(true);
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  const [selectedItems, setSelectedItems] = React.useState<SelectedItem[]>([]);
   
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showGatePassModal, setShowGatePassModal] = React.useState(false);
@@ -80,42 +123,34 @@ export function OutgoingForm() {
   const [qrCodeDataForPass, setQrCodeDataForPass] = React.useState("");
 
   const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
-  const [pendingFormValues, setPendingFormValues] = React.useState<OutgoingFormValues | null>(null);
+  const [pendingFormValues, setPendingFormValues] = React.useState<OutgoingFormDetailsValues | null>(null);
 
-  const form = useForm<OutgoingFormValues>({
-    resolver: zodResolver(outgoingFormSchema),
+  const form = useForm<OutgoingFormDetailsValues>({
+    resolver: zodResolver(outgoingFormDetailsSchema),
     defaultValues: {
-      items: [{ productId: "", quantity: 1, productName: "", availableStock: 0 }],
       dispatchedAt: new Date(),
       destination: "",
       reason: "",
     },
   });
 
-  const { fields, append, remove, update: updateField } = useFieldArray({
-    control: form.control,
-    name: "items",
-  });
-
   React.useEffect(() => {
     if (authLoading || !user) {
       setIsLoadingProducts(false);
-      setProducts([]);
+      setAllProducts([]);
+      setFilteredProducts([]);
       return;
     }
     setIsLoadingProducts(true);
     const productsDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/product`);
     const listener = onValue(productsDbRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        const productList = Object.entries(data).map(([key, value]) => ({
-          ...(value as Omit<Product, 'id'>),
-          id: key,
-        }));
-        setProducts(productList);
-      } else {
-        setProducts([]);
-      }
+      const productList = data ? Object.entries(data).map(([key, value]) => ({
+        ...(value as Omit<Product, 'id'>),
+        id: key,
+      })) : [];
+      setAllProducts(productList);
+      setFilteredProducts(productList);
       setIsLoadingProducts(false);
     }, (error) => {
       console.error("Error fetching products:", error);
@@ -125,56 +160,101 @@ export function OutgoingForm() {
     return () => off(productsDbRef, 'value', listener);
   }, [user, authLoading, toast]);
 
-  const handleProductChange = (index: number, productId: string) => {
-    const product = products.find(p => p.id === productId);
-    if (product) {
-      updateField(index, {
-        ...fields[index],
-        productId: product.id,
-        productName: product.name,
-        availableStock: product.currentStock,
-        quantity: 1, // Reset quantity
-      });
-      form.clearErrors(`items.${index}.quantity`); // Clear previous errors
-    }
-  };
-  
-  const handleQuantityChange = (index: number, quantity: number) => {
-    const item = fields[index];
-    const product = products.find(p => p.id === item.productId);
-    if (product && quantity > product.currentStock) {
-      form.setError(`items.${index}.quantity`, {
-        type: 'manual',
-        message: `Max: ${product.currentStock}`,
-      });
-    } else {
-      form.clearErrors(`items.${index}.quantity`);
-    }
-     updateField(index, { ...item, quantity });
+  React.useEffect(() => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    setFilteredProducts(
+      allProducts.filter(product => 
+        product.name.toLowerCase().includes(lowerSearchTerm) || 
+        product.sku.toLowerCase().includes(lowerSearchTerm) ||
+        (product.category && product.category.toLowerCase().includes(lowerSearchTerm))
+      )
+    );
+  }, [searchTerm, allProducts]);
+
+  const handleProductSelect = (product: Product) => {
+    if (product.currentStock === 0) return;
+
+    setSelectedItems(prevItems => {
+      const existingItemIndex = prevItems.findIndex(item => item.productId === product.id);
+      if (existingItemIndex > -1) {
+        const updatedItems = [...prevItems];
+        const currentItem = updatedItems[existingItemIndex];
+        if (currentItem.quantity < product.currentStock) {
+          updatedItems[existingItemIndex] = { ...currentItem, quantity: currentItem.quantity + 1 };
+        } else {
+          toast({ title: "Stock Limit", description: `Cannot add more ${product.name}. Max stock reached.`, variant: "default" });
+        }
+        return updatedItems;
+      } else {
+        if (product.currentStock > 0) {
+          return [...prevItems, { 
+            productId: product.id, 
+            name: product.name, 
+            sku: product.sku, 
+            quantity: 1, 
+            availableStock: product.currentStock 
+          }];
+        }
+        return prevItems;
+      }
+    });
   };
 
-  const triggerPasswordConfirmation = (values: OutgoingFormValues) => {
-    if (!user) return;
-     // Re-validate stock just before submission
-    let stockError = false;
-    values.items.forEach((item, index) => {
-        const productDetails = products.find(p => p.id === item.productId);
-        if (productDetails && item.quantity > productDetails.currentStock) {
-            form.setError(`items.${index}.quantity`, { type: "manual", message: `Stock changed. Max: ${productDetails.currentStock}` });
-            stockError = true;
-        }
-    });
-    if (stockError) {
-        toast({ title: "Stock Level Error", description: "Some item quantities exceed available stock. Please review.", variant: "destructive" });
-        return;
+  const updateItemQuantity = (productId: string, newQuantity: number) => {
+    const productDetails = allProducts.find(p => p.id === productId);
+    if (!productDetails) return;
+
+    const clampedQuantity = Math.max(0, Math.min(newQuantity, productDetails.currentStock));
+
+    setSelectedItems(prevItems => 
+      prevItems.map(item => 
+        item.productId === productId ? { ...item, quantity: clampedQuantity } : item
+      ).filter(item => item.quantity > 0) // Remove if quantity becomes 0
+    );
+  };
+
+  const incrementItemQuantity = (productId: string) => {
+    const item = selectedItems.find(i => i.productId === productId);
+    if (item) {
+      updateItemQuantity(productId, item.quantity + 1);
     }
+  };
+
+  const decrementItemQuantity = (productId: string) => {
+    const item = selectedItems.find(i => i.productId === productId);
+    if (item) {
+      updateItemQuantity(productId, item.quantity - 1);
+    }
+  };
+
+  const removeItemFromCart = (productId: string) => {
+    setSelectedItems(prevItems => prevItems.filter(item => item.productId !== productId));
+  };
+
+  const triggerPasswordConfirmation = (values: OutgoingFormDetailsValues) => {
+    if (!user) return;
+    if (selectedItems.length === 0) {
+      toast({ title: "No Items", description: "Please select at least one product.", variant: "destructive" });
+      return;
+    }
+    // Re-validate stock just before submission
+    let stockError = false;
+    selectedItems.forEach(item => {
+      const productDetails = allProducts.find(p => p.id === item.productId);
+      if (!productDetails || item.quantity > productDetails.currentStock) {
+        stockError = true;
+        toast({ title: "Stock Issue", description: `Stock for ${item.name} may have changed. Max available: ${productDetails?.currentStock ?? 0}.`, variant: "destructive" });
+      }
+    });
+    if (stockError) return;
+
     setPendingFormValues(values);
     setIsPasswordModalOpen(true);
   };
 
   const processGatePassCreation = async () => {
-    if (!user || !pendingFormValues) {
-      toast({ title: "Error", description: "User or form data missing.", variant: "destructive" });
+    if (!user || !pendingFormValues || selectedItems.length === 0) {
+      toast({ title: "Error", description: "User, form data, or selected items missing.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
@@ -187,24 +267,21 @@ export function OutgoingForm() {
       return;
     }
     
-    const gatePassItems: GatePassItem[] = values.items.map(item => {
-      const product = products.find(p => p.id === item.productId)!;
-      return {
-        productId: item.productId,
-        name: product.name,
-        sku: product.sku,
-        quantity: item.quantity,
-      };
-    });
+    const gatePassDbItems: AppGatePassItem[] = selectedItems.map(item => ({
+      productId: item.productId,
+      name: item.name,
+      sku: item.sku,
+      quantity: item.quantity,
+    }));
 
-    const totalQuantity = gatePassItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
     const userName = user.displayName || user.email || "N/A";
 
     const gatePassData: GatePass = {
       id: gatePassId,
       userId: user.uid,
       userName: userName,
-      items: gatePassItems,
+      items: gatePassDbItems,
       destination: values.destination,
       reason: values.reason,
       date: format(values.dispatchedAt, "yyyy-MM-dd"),
@@ -213,23 +290,21 @@ export function OutgoingForm() {
       qrCodeData: gatePassId,
     };
 
-    // Prepare stock updates
     const stockUpdates: { [key: string]: any } = {};
-    const productFetchPromises = values.items.map(item => 
-        get(databaseRef(rtdb, `Stockflow/${user.uid}/product/${item.productId}/currentStock`))
+    const productFetchPromises = selectedItems.map(item => 
+      get(databaseRef(rtdb, `Stockflow/${user.uid}/product/${item.productId}/currentStock`))
     );
 
     try {
       const productStockSnapshots = await Promise.all(productFetchPromises);
       
-      for (let i = 0; i < values.items.length; i++) {
-        const item = values.items[i];
+      for (let i = 0; i < selectedItems.length; i++) {
+        const item = selectedItems[i];
         const currentStockSnapshot = productStockSnapshots[i];
         const currentStock = currentStockSnapshot.val();
 
         if (typeof currentStock !== 'number' || item.quantity > currentStock) {
-          form.setError(`items.${i}.quantity`, { message: `Stock issue for ${item.productName}. Available: ${currentStock ?? 'N/A'}` });
-          toast({ title: "Stock Update Error", description: `Not enough stock for ${item.productName}. Please refresh.`, variant: "destructive" });
+          toast({ title: "Stock Update Error", description: `Not enough stock for ${item.name}. Available: ${currentStock ?? 'N/A'}. Please refresh.`, variant: "destructive" });
           setIsSubmitting(false);
           return;
         }
@@ -237,29 +312,29 @@ export function OutgoingForm() {
         stockUpdates[`Stockflow/${user.uid}/product/${item.productId}/updatedAt`] = new Date().toISOString();
       }
 
-      // Add gate pass data to updates
       stockUpdates[`Stockflow/${user.uid}/gatePasses/${gatePassId}`] = gatePassData;
-
       await update(databaseRef(rtdb), stockUpdates);
 
       toast({ title: "Gate Pass Logged & Stock Updated", description: "Successfully recorded outgoing items." });
 
-      // AI Pass Generation
       const aiInput: GenerateGatePassInput = {
-        items: gatePassItems.map(p => ({ productName: p.name, quantity: p.quantity })),
+        items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
         destination: values.destination,
         reason: values.reason,
-        date: format(values.dispatchedAt, "PPP"), // e.g. Jun 9, 2024
+        date: format(values.dispatchedAt, "PPP"),
         userName: userName,
         qrCodeData: gatePassId,
       };
       
       const aiResult = await generateGatePass(aiInput);
       setGatePassContent(aiResult.gatePass);
-      setQrCodeDataForPass(gatePassId); // For display/use in modal
+      setQrCodeDataForPass(gatePassId);
       setShowGatePassModal(true);
-      // Form reset is handled in GatePassModal's onClose
       
+      // Reset form and selected items
+      form.reset({ dispatchedAt: new Date(), destination: "", reason: "" });
+      setSelectedItems([]);
+
     } catch (error: any) {
       console.error("Error processing gate pass:", error);
       toast({ title: "Processing Error", description: error.message || "Failed to process gate pass and update stock.", variant: "destructive" });
@@ -269,21 +344,7 @@ export function OutgoingForm() {
     }
   };
   
-  const watchedItems = form.watch("items");
-  const summaryTotalQuantity = watchedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
-
-  if (isLoadingProducts && products.length === 0) {
-    return (
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader><Skeleton className="h-8 w-3/5" /></CardHeader>
-        <CardContent className="space-y-4">
-          {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-          <Skeleton className="h-20 w-full" />
-          <div className="flex justify-end"><Skeleton className="h-10 w-32" /></div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const summaryTotalQuantity = selectedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
   return (
     <>
@@ -295,229 +356,203 @@ export function OutgoingForm() {
       />
       <GatePassModal
         isOpen={showGatePassModal}
-        onClose={() => {
-          setShowGatePassModal(false);
-          form.reset({
-             items: [{ productId: "", quantity: 1, productName: "", availableStock: 0 }],
-             dispatchedAt: new Date(),
-             destination: "",
-             reason: "",
-          });
-        }}
+        onClose={() => setShowGatePassModal(false)}
         gatePassContent={gatePassContent}
         qrCodeData={qrCodeDataForPass}
       />
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(triggerPasswordConfirmation)} className="space-y-8">
-          <Card className="max-w-3xl mx-auto">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ArrowUpFromLine className="h-6 w-6 text-primary" /> Generate Gate Pass
-              </CardTitle>
-              <CardDescription>Select products, specify quantities, and provide dispatch details.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <FormLabel>Items to Dispatch</FormLabel>
-                {fields.map((field, index) => {
-                  const selectedProductDetails = products.find(p => p.id === field.productId);
-                  return (
-                    <div key={field.id} className="flex items-end gap-2 mt-2 p-3 border rounded-md bg-muted/20">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.productId`}
-                        render={({ field: controllerField }) => (
-                          <FormItem className="flex-1">
-                            <FormLabel className="text-xs">Product</FormLabel>
-                            <Select
-                              onValueChange={(value) => {
-                                controllerField.onChange(value);
-                                handleProductChange(index, value);
-                              }}
-                              defaultValue={controllerField.value}
-                              disabled={isSubmitting || isLoadingProducts}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a product" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {products.length === 0 && !isLoadingProducts ? (
-                                  <div className="p-4 text-center text-sm text-muted-foreground">No products available.</div>
-                                ) : (
-                                  products.map(product => (
-                                    <SelectItem key={product.id} value={product.id} disabled={product.currentStock === 0}>
-                                      {product.name} (Stock: {product.currentStock})
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.quantity`}
-                        render={({ field: controllerField }) => (
-                          <FormItem className="w-28">
-                             <FormLabel className="text-xs">Quantity</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="Qty"
-                                {...controllerField}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10) || 0;
-                                  controllerField.onChange(val);
-                                  handleQuantityChange(index, val);
-                                }}
-                                disabled={isSubmitting || !selectedProductDetails || selectedProductDetails.currentStock === 0}
-                                min="1"
-                                max={selectedProductDetails?.currentStock}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => fields.length > 1 && remove(index)}
-                        disabled={isSubmitting || fields.length <= 1}
-                        className="shrink-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+      <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-var(--header-height,100px)-2rem)]">
+        {/* Left Pane: Product Selection */}
+        <Card className="md:w-2/3 flex flex-col shadow-lg">
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShoppingCart className="h-5 w-5 text-primary" /> Select Products
+            </CardTitle>
+            <div className="relative mt-2">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search products by name, SKU, category..."
+                className="pl-8 w-full"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={isLoadingProducts}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-3 flex-grow overflow-hidden">
+            {isLoadingProducts && (
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {[...Array(8)].map((_, i) => (
+                  <Card key={i} className="overflow-hidden">
+                    <Skeleton className="aspect-[4/3] w-full" />
+                    <div className="p-3 space-y-1.5">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                      <Skeleton className="h-4 w-1/3" />
                     </div>
-                  );
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ productId: "", quantity: 1, productName: "", availableStock: 0 })}
-                  className="mt-2"
-                  disabled={isSubmitting || isLoadingProducts}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-                </Button>
-                {form.formState.errors.items && !form.formState.errors.items.root && !Array.isArray(form.formState.errors.items) && (
-                    <FormMessage>{form.formState.errors.items.message}</FormMessage>
-                )}
-                 {Array.isArray(form.formState.errors.items) && form.formState.errors.items.map((itemError, i) => (
-                    itemError && <FormMessage key={i}>{itemError.root?.message || itemError.quantity?.message || itemError.productId?.message}</FormMessage>
+                  </Card>
                 ))}
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="destination"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Destination</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Customer X, Warehouse B" {...field} disabled={isSubmitting} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dispatchedAt"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel className="mb-1.5">Date of Dispatch</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
-                              disabled={isSubmitting}
-                            >
-                              {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("2000-01-01") || isSubmitting} initialFocus />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="reason"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reason for Dispatch</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="e.g., Sale, Internal Transfer, Return to Supplier" {...field} disabled={isSubmitting} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-            
-            {watchedItems.length > 0 && watchedItems[0].productId && summaryTotalQuantity > 0 && (
-              <CardFooter className="flex-col items-start gap-2 border-t pt-6">
-                  <h3 className="font-semibold text-lg flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary"/>Dispatch Summary</h3>
-                  <div className="w-full overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Product</TableHead>
-                                <TableHead className="text-right">Quantity</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {watchedItems.filter(item => item.productId && item.quantity > 0).map((item, index) => {
-                                const product = products.find(p => p.id === item.productId);
-                                return (
-                                    <TableRow key={index}>
-                                        <TableCell>{product?.name || 'N/A'}</TableCell>
-                                        <TableCell className="text-right">{item.quantity}</TableCell>
-                                    </TableRow>
-                                );
-                            })}
-                             <TableRow className="font-semibold">
-                                <TableCell>Total Quantity</TableCell>
-                                <TableCell className="text-right">{summaryTotalQuantity}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
-                    <User className="h-4 w-4" />
-                    Gate Pass to be created by: {user?.displayName || user?.email || "Current User"}
-                  </p>
-              </CardFooter>
             )}
+            {!isLoadingProducts && filteredProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Search className="w-16 h-16 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  {allProducts.length === 0 ? "No products available in inventory." : "No products match your search."}
+                </p>
+              </div>
+            )}
+            {!isLoadingProducts && filteredProducts.length > 0 && (
+              <ScrollArea className="h-full pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filteredProducts.map(product => (
+                    <ProductSelectionCard 
+                      key={product.id}
+                      product={product}
+                      onSelect={handleProductSelect}
+                      quantityInCart={selectedItems.find(item => item.productId === product.id)?.quantity || 0}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
 
-          </Card>
+        {/* Right Pane: Cart & Dispatch Details */}
+        <Card className="md:w-1/3 flex flex-col shadow-lg">
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Ticket className="h-5 w-5 text-primary" /> Gate Pass Details
+            </CardTitle>
+            <CardDescription>Review items and enter dispatch information.</CardDescription>
+          </CardHeader>
           
-          <div className="flex justify-end max-w-3xl mx-auto">
-            <Button type="submit" disabled={isSubmitting || authLoading || isLoadingProducts || fields.length === 0 || !fields[0].productId || summaryTotalQuantity === 0}>
-              {isSubmitting ? "Processing..." : "Log Outgoing & Generate Pass"}
-              {!isSubmitting && <Ticket className="ml-2 h-4 w-4" />}
-            </Button>
-          </div>
-        </form>
-      </Form>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(triggerPasswordConfirmation)} className="flex flex-col flex-grow">
+              <CardContent className="p-3 space-y-4 flex-grow overflow-y-auto">
+                <ScrollArea className="h-[calc(50vh-180px)] sm:h-auto sm:max-h-[300px] pr-2">
+                  {selectedItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No items selected yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedItems.map(item => (
+                        <div key={item.productId} className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                          <div className="flex-grow">
+                            <p className="text-sm font-medium truncate" title={item.name}>{item.name}</p>
+                            <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => decrementItemQuantity(item.productId)} disabled={isSubmitting}>
+                              <MinusCircle className="h-4 w-4" />
+                            </Button>
+                            <Input 
+                              type="number" 
+                              className="h-7 w-12 text-center px-1" 
+                              value={item.quantity}
+                              onChange={(e) => updateItemQuantity(item.productId, parseInt(e.target.value,10) || 0)}
+                              min="0"
+                              max={item.availableStock}
+                              disabled={isSubmitting}
+                            />
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => incrementItemQuantity(item.productId)} disabled={isSubmitting || item.quantity >= item.availableStock}>
+                              <PlusCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItemFromCart(item.productId)} disabled={isSubmitting}>
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+
+                {selectedItems.length > 0 && (
+                  <div className="border-t pt-3 mt-3">
+                    <div className="flex justify-between font-semibold">
+                      <span>Total Quantity:</span>
+                      <span>{summaryTotalQuantity}</span>
+                    </div>
+                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        Created by: {user?.displayName || user?.email || "Current User"}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="space-y-3 pt-2">
+                  <FormField
+                    control={form.control}
+                    name="destination"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">Destination</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Customer X, Warehouse B" {...field} disabled={isSubmitting} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="dispatchedAt"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="text-sm mb-0.5">Date of Dispatch</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
+                                disabled={isSubmitting}
+                              >
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("2000-01-01") || isSubmitting} initialFocus />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="reason"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">Reason for Dispatch</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="e.g., Sale, Internal Transfer, Return..." {...field} disabled={isSubmitting} className="min-h-[60px]" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CardContent>
+              
+              <CardFooter className="border-t p-3 mt-auto">
+                <Button 
+                  type="submit" 
+                  className="w-full"
+                  disabled={isSubmitting || authLoading || isLoadingProducts || selectedItems.length === 0 || summaryTotalQuantity === 0}
+                >
+                  {isSubmitting ? "Processing..." : "Log Outgoing & Generate Pass"}
+                  {!isSubmitting && <Ticket className="ml-2 h-4 w-4" />}
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
+        </Card>
+      </div>
     </>
   );
 }
