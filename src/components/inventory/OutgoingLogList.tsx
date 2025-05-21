@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { GatePass } from "@/types";
-import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye } from "lucide-react";
+import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, User } from "lucide-react"; // Added User
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
 import { ref as databaseRef, onValue, off } from "firebase/database";
