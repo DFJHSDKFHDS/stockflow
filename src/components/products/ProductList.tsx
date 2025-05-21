@@ -63,8 +63,8 @@ export function ProductList() {
       const data = snapshot.val();
       if (data) {
         const productList = Object.entries(data).map(([key, value]) => ({
-          ...(value as Omit<Product, 'id'>), // Cast value to Product, assuming 'id' is part of the value or use key
-          id: key, // Use the Firebase key as the product ID
+          ...(value as Omit<Product, 'id'>), 
+          id: key, 
         }));
         setProducts(productList);
       } else {
@@ -101,13 +101,12 @@ export function ProductList() {
             const imageStorageRef = storageRef(storage, productToDelete.imageUrl);
             await deleteObject(imageStorageRef);
         } catch (storageError: any) {
-            // Log if image deletion fails but proceed with toast for DB deletion
             console.warn(`Failed to delete image ${productToDelete.imageUrl}:`, storageError);
-             if (storageError.code !== 'storage/object-not-found') { // Don't show toast if image was already gone
+             if (storageError.code !== 'storage/object-not-found') { 
                 toast({
                     title: "Image Deletion Warning",
                     description: `Product data deleted, but failed to delete image: ${storageError.message}`,
-                    variant: "default", // Use default or a specific warning variant
+                    variant: "default", 
                 });
              }
         }
@@ -117,7 +116,6 @@ export function ProductList() {
         title: "Product Deleted",
         description: `"${productToDelete.name}" has been successfully deleted.`,
       });
-      // products state will update automatically due to onValue listener
     } catch (error: any) {
       toast({
         title: "Error Deleting Product",
@@ -251,12 +249,10 @@ export function ProductList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {/* TODO: Implement edit page that pre-fills ProductForm */}
-                      {/* <DropdownMenuItem asChild> */}
-                      {/*   <Link href={`/products/edit/${product.id}`}> <Edit className="mr-2 h-4 w-4" /> Edit</Link> */}
-                      {/* </DropdownMenuItem> */}
-                       <DropdownMenuItem onClick={() => alert("Edit functionality to be implemented. Pass product ID to ProductForm.")}>
-                         <Edit className="mr-2 h-4 w-4" /> Edit
+                       <DropdownMenuItem asChild>
+                         <Link href={`/products/edit/${product.id}`}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                         </Link>
                        </DropdownMenuItem>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
