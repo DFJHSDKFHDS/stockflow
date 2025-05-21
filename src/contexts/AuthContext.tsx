@@ -2,8 +2,14 @@
 "use client";
 
 import type { User as FirebaseUser } from "firebase/auth";
+import { 
+  onAuthStateChanged, 
+  signOut as firebaseSignOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
@@ -12,10 +18,10 @@ interface User extends FirebaseUser {} // Can extend with custom properties if n
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, pass: string) => Promise<User | null>; // Simplified, replace with actual Firebase signInWithEmailAndPassword
-  signUp: (email: string, pass: string) => Promise<User | null>; // Simplified, replace with actual Firebase createUserWithEmailAndPassword
+  signIn: (email: string, pass: string) => Promise<User | null>;
+  signUp: (email: string, pass: string) => Promise<User | null>;
   signOut: () => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>; // Simplified
+  forgotPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
@@ -33,48 +39,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  // Mocked auth functions, replace with actual Firebase calls
   const signIn = async (email: string, password: string): Promise<User | null> => {
     setLoading(true);
-    // Replace with: import { signInWithEmailAndPassword } from "firebase/auth";
-    // await signInWithEmailAndPassword(auth, email, password);
-    // For now, simulate login
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockUser = { email, uid: "mock-uid", displayName: "Mock User" } as User;
-        setUser(mockUser);
-        setLoading(false);
-        resolve(mockUser);
-      }, 1000);
-    });
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will handle setting the user state
+      return userCredential.user as User;
+    } catch (error) {
+      throw error; // Re-throw to be caught by the form
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUp = async (email: string, password: string): Promise<User | null> => {
     setLoading(true);
-    // Replace with: import { createUserWithEmailAndPassword } from "firebase/auth";
-    // await createUserWithEmailAndPassword(auth, email, password);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockUser = { email, uid: "mock-uid-new", displayName: "New User" } as User;
-        setUser(mockUser);
-        setLoading(false);
-        resolve(mockUser);
-      }, 1000);
-    });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will handle setting the user state
+      // Firebase automatically signs in the user after successful creation.
+      return userCredential.user as User;
+    } catch (error) {
+      throw error; // Re-throw to be caught by the form
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signOut = async () => {
     setLoading(true);
-    // Replace with: await firebaseSignOut(auth);
-    setUser(null);
-    setLoading(false);
-    router.push("/login");
+    try {
+      await firebaseSignOut(auth);
+      setUser(null); // Explicitly set user to null
+      router.push("/login");
+    } catch (error: any) {
+      console.error("Sign out error:", error);
+      // Optionally, show a toast for sign-out errors, though less common
+      throw error; // Or handle more gracefully
+    } finally {
+      setLoading(false);
+    }
   };
   
   const forgotPassword = async (email: string) => {
-    // Replace with: import { sendPasswordResetEmail } from "firebase/auth";
-    // await sendPasswordResetEmail(auth, email);
-    alert(`Password reset link sent to ${email} (mocked)`);
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      // Success toast is handled in the form component
+    } catch (error: any) {
+      throw error; // Re-throw to be caught by the form
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
