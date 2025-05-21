@@ -14,8 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Product } from "@/types";
-import { Edit, Trash2, PackageSearch, PlusCircle } from "lucide-react";
+import { Edit, Trash2, PackageSearch, PlusCircle, ImageOff } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,26 +33,53 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-
-// Mock data
-const mockProducts: Product[] = [
-  { id: "1", name: "Laptop Pro 15", sku: "LP-001", category: "Electronics", currentStock: 50, unitPrice: 1200, createdAt: new Date(), updatedAt: new Date(), userId: "user1", description: "High-performance laptop" },
-  { id: "2", name: "Wireless Mouse", sku: "WM-002", category: "Accessories", currentStock: 150, unitPrice: 25, createdAt: new Date(), updatedAt: new Date(), userId: "user1", description: "Ergonomic wireless mouse"  },
-  { id: "3", name: "Mechanical Keyboard", sku: "MK-003", category: "Accessories", currentStock: 75, unitPrice: 80, createdAt: new Date(), updatedAt: new Date(), userId: "user1", description: "RGB mechanical keyboard" },
-];
+import { useAuth } from "@/contexts/AuthContext";
+import { rtdb, storage } from "@/lib/firebase";
+import { ref as databaseRef, onValue, off, remove } from "firebase/database";
+import { ref as storageRef, deleteObject } from "firebase/storage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function ProductList() {
-  const [products, setProducts] = React.useState<Product[]>(mockProducts);
+  const [products, setProducts] = React.useState<Product[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  // Placeholder for data fetching
   React.useEffect(() => {
-    // fetchProducts().then(setProducts);
-  }, []);
+    if (!user) {
+      setIsLoading(false);
+      // setProducts([]); // Clear products if user logs out
+      return;
+    }
+
+    setIsLoading(true);
+    const productsDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/product`);
+
+    const listener = onValue(productsDbRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const productList = Object.entries(data).map(([key, value]) => ({
+          ...(value as Omit<Product, 'id'>), // Cast value to Product, assuming 'id' is part of the value or use key
+          id: key, // Use the Firebase key as the product ID
+        }));
+        setProducts(productList);
+      } else {
+        setProducts([]);
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching products:", error);
+      toast({ title: "Error", description: "Failed to fetch products.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => {
+      off(productsDbRef, 'value', listener);
+    };
+  }, [user, toast]);
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -59,16 +87,87 @@ export function ProductList() {
     (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleDelete = async (productId: string) => {
-    // Mock delete
-    setProducts(prev => prev.filter(p => p.id !== productId));
-    toast({
-      title: "Product Deleted",
-      description: "The product has been successfully deleted.",
-    });
+  const handleDelete = async (productToDelete: Product) => {
+    if (!user) return;
+    try {
+      // Delete from Realtime Database
+      const productDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/product/${productToDelete.id}`);
+      await remove(productDbRef);
+
+      // Delete image from Storage if it exists
+      if (productToDelete.imageUrl) {
+        try {
+            const imageStorageRef = storageRef(storage, productToDelete.imageUrl);
+            await deleteObject(imageStorageRef);
+        } catch (storageError: any) {
+            // Log if image deletion fails but proceed with toast for DB deletion
+            console.warn(`Failed to delete image ${productToDelete.imageUrl}:`, storageError);
+             if (storageError.code !== 'storage/object-not-found') { // Don't show toast if image was already gone
+                toast({
+                    title: "Image Deletion Warning",
+                    description: `Product data deleted, but failed to delete image: ${storageError.message}`,
+                    variant: "default", // Use default or a specific warning variant
+                });
+             }
+        }
+      }
+
+      toast({
+        title: "Product Deleted",
+        description: `"${productToDelete.name}" has been successfully deleted.`,
+      });
+      // products state will update automatically due to onValue listener
+    } catch (error: any) {
+      toast({
+        title: "Error Deleting Product",
+        description: error.message || "Failed to delete product.",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-10 w-1/3" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="rounded-md border shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[80px]">Image</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Stock</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-12 w-12 rounded" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-3/4" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-1/2" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-1/2" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-4 w-8 ml-auto" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
+                  <TableCell className="text-center"><Skeleton className="h-6 w-20 mx-auto" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }
   
-  if (products.length === 0) {
+  if (!isLoading && products.length === 0 && !searchTerm) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
         <PackageSearch className="w-16 h-16 text-muted-foreground mb-4" />
@@ -103,6 +202,7 @@ export function ProductList() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[80px]">Image</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Category</TableHead>
@@ -115,6 +215,22 @@ export function ProductList() {
           <TableBody>
             {filteredProducts.map((product) => (
               <TableRow key={product.id}>
+                <TableCell>
+                  {product.imageUrl ? (
+                    <Image
+                      src={product.imageUrl}
+                      alt={product.name}
+                      width={50}
+                      height={50}
+                      className="rounded-md object-cover aspect-square"
+                      data-ai-hint="product item"
+                    />
+                  ) : (
+                    <div className="w-[50px] h-[50px] bg-muted rounded-md flex items-center justify-center" data-ai-hint="placeholder item">
+                        <ImageOff className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
                 <TableCell>{product.sku}</TableCell>
                 <TableCell>{product.category || "-"}</TableCell>
@@ -134,14 +250,16 @@ export function ProductList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => alert(`Editing ${product.name} (mock)`)} // Replace with Link to edit page or modal
-                      >
-                        <Edit className="mr-2 h-4 w-4" /> Edit
-                      </DropdownMenuItem>
+                      {/* TODO: Implement edit page that pre-fills ProductForm */}
+                      {/* <DropdownMenuItem asChild> */}
+                      {/*   <Link href={`/products/edit/${product.id}`}> <Edit className="mr-2 h-4 w-4" /> Edit</Link> */}
+                      {/* </DropdownMenuItem> */}
+                       <DropdownMenuItem onClick={() => alert("Edit functionality to be implemented. Pass product ID to ProductForm.")}>
+                         <Edit className="mr-2 h-4 w-4" /> Edit
+                       </DropdownMenuItem>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
                              <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
                         </AlertDialogTrigger>
@@ -154,7 +272,7 @@ export function ProductList() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(product.id)}>
+                            <AlertDialogAction onClick={() => handleDelete(product)} className="bg-destructive hover:bg-destructive/90">
                               Delete
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -171,6 +289,11 @@ export function ProductList() {
       {filteredProducts.length === 0 && searchTerm && (
          <div className="text-center py-8 text-muted-foreground">
             No products match your search criteria.
+         </div>
+      )}
+       {products.length > 0 && filteredProducts.length === 0 && !searchTerm && (
+         <div className="text-center py-8 text-muted-foreground">
+            All products filtered out. Clear search to see all products.
          </div>
       )}
     </div>

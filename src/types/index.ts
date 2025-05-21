@@ -9,17 +9,18 @@ export interface Product {
   currentStock: number;
   unitPrice?: number; // Optional: if tracking value
   supplier?: string; // Optional
-  createdAt: Date;
-  updatedAt: Date;
+  imageUrl?: string; // Added for product image
+  createdAt: string; // Changed to string for RTDB compatibility
+  updatedAt: string; // Changed to string for RTDB compatibility
   userId: string; // To associate with the user who created it
 }
 
 export interface StockLog {
-  id: string;
+  id:string;
   productId: string;
   productName: string; // Denormalized for easier display
   quantity: number;
-  timestamp: Date;
+  timestamp: string; // Changed to string
   userId: string;
   type: 'incoming' | 'outgoing';
 }
