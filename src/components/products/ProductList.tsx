@@ -33,7 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, // Added AlertDialogTrigger
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -236,7 +236,7 @@ export function ProductList() {
                 <TableCell>{product.sku}</TableCell>
                 <TableCell>{product.category || "-"}</TableCell>
                 <TableCell className="text-right">{product.currentStock}</TableCell>
-                <TableCell className="text-right">${product.unitPrice?.toFixed(2) || "N/A"}</TableCell>
+                <TableCell className="text-right">Rs {product.unitPrice?.toFixed(2) || "N/A"}</TableCell>
                 <TableCell className="text-center">
                   <Badge variant={product.currentStock > 0 ? (product.currentStock < 10 ? "destructive" : "default") : "outline"}>
                     {product.currentStock > 0 ? (product.currentStock < 10 ? "Low Stock" : "In Stock") : "Out of Stock"}
