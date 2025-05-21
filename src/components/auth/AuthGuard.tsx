@@ -18,7 +18,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!user && !AUTH_ROUTES.includes(pathname)) {
         router.push("/login");
       } else if (user && AUTH_ROUTES.includes(pathname)) {
-        router.push("/"); // Redirect to dashboard if user is logged in and tries to access auth pages
+        // Default to the main page (Generate Gate Pass) after login
+        router.push("/"); 
       }
     }
   }, [user, loading, router, pathname]);
@@ -34,13 +35,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user && !AUTH_ROUTES.includes(pathname)) {
-    // This case should be handled by the useEffect redirect,
-    // but as a fallback, show loading or null.
     return null; 
   }
   
   if (user && AUTH_ROUTES.includes(pathname)) {
-    // This case also handled by useEffect.
     return null;
   }
 

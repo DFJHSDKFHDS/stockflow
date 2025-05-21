@@ -30,7 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/icons/Logo";
 import {
-  LayoutDashboard,
+  LayoutDashboard, // Kept for reference, but Dashboard page is now Gate Pass
   Package,
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -39,7 +39,8 @@ import {
   LogOut,
   Menu,
   PackagePlus,
-  FileText,
+  FileText, // Icon for Generate Gate Pass
+  History, // Icon for viewing logs/history
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,10 +51,11 @@ interface NavItem {
   icon: React.ElementType;
   subItems?: NavItem[];
   badge?: string;
+  exact?: boolean; // To match exact path for "/"
 }
 
 const navItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Generate Gate Pass", icon: FileText, exact: true },
   {
     href: "/products",
     label: "Products",
@@ -64,7 +66,8 @@ const navItems: NavItem[] = [
     ],
   },
   { href: "/incoming", label: "Incoming Log", icon: ArrowDownToLine },
-  { href: "/outgoing", label: "Outgoing Log", icon: ArrowUpFromLine },
+  // Example: If you want a separate page to view past outgoing logs/gate passes
+  // { href: "/outgoing-history", label: "Outgoing History", icon: History }, 
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -77,6 +80,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
   
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
+
+  const getActiveLabel = () => {
+    for (const item of navItems) {
+      if (item.exact && pathname === item.href) return item.label;
+      if (!item.exact && pathname.startsWith(item.href) && item.href !== "/") return item.label;
+      if (item.subItems) {
+        for (const subItem of item.subItems) {
+          if (pathname.startsWith(subItem.href)) return subItem.label;
+        }
+      }
+    }
+    return "StockFlow";
+  }
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -93,12 +109,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <SidebarMenuItem key={item.label}>
                 <Link href={item.href} passHref legacyBehavior>
                   <SidebarMenuButton
-                    className={cn(pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground")}
-                    isActive={pathname.startsWith(item.href) && (item.href === "/" ? pathname === "/" : true) }
+                    isActive={item.exact ? pathname === item.href : pathname.startsWith(item.href)}
                     tooltip={{ children: item.label, side: 'right', className: 'ml-2' }}
                   >
                     <item.icon className="h-5 w-5" />
-                    {/* Text labels will now always show when sidebar is open, as group-data-[collapsible=icon] won't apply */}
                     <span>{item.label}</span>
                   </SidebarMenuButton>
                 </Link>
@@ -111,12 +125,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-4 mt-auto border-t">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start p-2"> {/* Removed group-data-[collapsible=icon]:justify-center */}
+              <Button variant="ghost" className="w-full justify-start p-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || user?.email || "User"} />
                   <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
                 </Avatar>
-                {/* Text will now always show when sidebar is open */}
                 <div className="ml-2 text-left"> 
                   <p className="text-sm font-medium truncate">{user?.displayName || user?.email}</p>
                   <p className="text-xs text-muted-foreground">View Profile</p>
@@ -140,10 +153,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-4">
-            <SidebarTrigger /> {/* Removed md:hidden to make it visible on all screen sizes */}
+            <SidebarTrigger />
             <div className="flex-1">
               <h1 className="text-xl font-semibold">
-                {navItems.find(item => pathname.startsWith(item.href) && (item.href === "/" ? pathname === "/" : true))?.label || "StockFlow"}
+                {getActiveLabel()}
               </h1>
             </div>
             <div className="md:hidden">

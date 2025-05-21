@@ -1,17 +1,17 @@
-// src/app/page.tsx (Dashboard)
+// src/app/page.tsx (New Generate Gate Pass Page)
 import { AppLayout } from "@/components/layout/AppLayout";
-import { DashboardClient } from "@/components/dashboard/DashboardClient";
+import { OutgoingForm } from "@/components/inventory/OutgoingForm";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Dashboard - StockFlow',
-  description: 'Overview of your inventory.',
+  title: 'Generate Gate Pass - StockFlow',
+  description: 'Create gate passes for outgoing products.',
 };
 
-export default function DashboardPage() {
+export default function GenerateGatePassPage() {
   return (
     <AppLayout>
-      <DashboardClient />
+      <OutgoingForm />
     </AppLayout>
   );
 }
