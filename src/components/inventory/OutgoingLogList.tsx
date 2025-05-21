@@ -189,7 +189,7 @@ export function OutgoingLogList() {
                         ) : (
                         <div className="space-y-3">
                             {selectedPass.items.map((item: GatePassItem) => (
-                            <div key={item.productId} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50 hover:shadow-sm transition-shadow">
+                            <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50 hover:shadow-sm transition-shadow">
                                 {item.imageUrl ? (
                                 <Image
                                     src={item.imageUrl}

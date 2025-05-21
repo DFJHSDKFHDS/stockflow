@@ -45,7 +45,7 @@ type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
 // Interface for items selected in the cart
 interface SelectedItem extends AppGatePassItem {
   availableStock: number;
-  imageUrl?: string; // Added to carry image URL
+  // imageUrl is already part of AppGatePassItem, no need to redefine
 }
 
 // Internal Product Card component for the selection pane
@@ -118,7 +118,7 @@ export function OutgoingForm() {
   
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showGatePassModal, setShowGatePassModal] = React.useState(false);
-  const [gatePassContentForModal, setGatePassContentForModal] = React.useState(""); // Renamed
+  const [gatePassContentForModal, setGatePassContentForModal] = React.useState("");
   const [qrCodeDataForPass, setQrCodeDataForPass] = React.useState("");
 
   const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
