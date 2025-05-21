@@ -190,7 +190,7 @@ export function OutgoingForm() {
             sku: product.sku, 
             quantity: 1, 
             availableStock: product.currentStock,
-            imageUrl: product.imageUrl || "" // Ensure imageUrl is always a string
+            imageUrl: product.imageUrl || "",
           }];
         }
         return prevItems;
@@ -257,6 +257,18 @@ export function OutgoingForm() {
     setIsSubmitting(true);
     const values = pendingFormValues;
 
+    // Combine selected date with current time
+    const selectedDateFromForm = new Date(values.dispatchedAt);
+    const currentTime = new Date();
+    const finalDispatchDateTime = new Date(
+      selectedDateFromForm.getFullYear(),
+      selectedDateFromForm.getMonth(),
+      selectedDateFromForm.getDate(),
+      currentTime.getHours(),
+      currentTime.getMinutes(),
+      currentTime.getSeconds()
+    );
+
     const gatePassId = push(databaseRef(rtdb, `Stockflow/${user.uid}/gatePasses`)).key;
     if (!gatePassId) {
       toast({ title: "Error", description: "Failed to generate Gate Pass ID.", variant: "destructive" });
@@ -269,7 +281,7 @@ export function OutgoingForm() {
       name: item.name,
       sku: item.sku,
       quantity: item.quantity,
-      imageUrl: item.imageUrl, // This will be either the URL or ""
+      imageUrl: item.imageUrl,
     }));
 
     const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -278,7 +290,7 @@ export function OutgoingForm() {
     const aiInputForPassGeneration: GenerateGatePassInput = {
       items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
       customerName: values.customerName,
-      date: format(values.dispatchedAt, "PPP"),
+      date: format(finalDispatchDateTime, "PPPp"), // Format with time for AI
       userName: userName,
       qrCodeData: gatePassId,
     };
@@ -290,7 +302,6 @@ export function OutgoingForm() {
     } catch (aiError: any) {
       console.error("AI Gate Pass generation failed:", aiError);
       toast({ title: "AI Generation Warning", description: "Could not generate printable slip content from AI. Gate pass will be logged without it.", variant: "default" });
-      // Proceed without AI content if it fails
     }
     
     const gatePassData: GatePass = {
@@ -299,11 +310,11 @@ export function OutgoingForm() {
       userName: userName,
       items: gatePassDbItems,
       customerName: values.customerName,
-      date: format(values.dispatchedAt, "yyyy-MM-dd"),
+      date: finalDispatchDateTime.toISOString(), // Store as ISO string
       totalQuantity: totalQuantity,
       createdAt: new Date().toISOString(),
       qrCodeData: gatePassId,
-      generatedPassContent: generatedAiContent, // Store AI content
+      generatedPassContent: generatedAiContent,
     };
 
     const stockUpdates: { [key: string]: any } = {};
@@ -338,7 +349,6 @@ export function OutgoingForm() {
         setQrCodeDataForPass(gatePassId);
         setShowGatePassModal(true);
       } else {
-         // If AI content failed, maybe show a simpler confirmation or the POS-style summary directly
         toast({ title: "Gate Pass Logged", description: "Details saved. Printable slip AI generation failed." });
       }
       
@@ -527,8 +537,11 @@ export function OutgoingForm() {
                                 className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
                                 disabled={isSubmitting}
                               >
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} 
+                                <span className="ml-auto text-xs text-muted-foreground">
+                                  (Time will be current)
+                                </span>
+                                <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
@@ -560,5 +573,3 @@ export function OutgoingForm() {
     </>
   );
 }
-
-    

@@ -150,7 +150,10 @@ export function OutgoingLogList() {
                         </div>
                         <div className="flex items-center">
                             <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>Dispatch Date:</strong> <span className="ml-1">{format(new Date(selectedPass.date), "PPP")}</span>
+                            <strong>Dispatch Date & Time:</strong> 
+                            <span className="ml-1">
+                                {selectedPass.date ? format(new Date(selectedPass.date), "PPPp") : "N/A"}
+                            </span>
                         </div>
                         <div className="flex items-center">
                             <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
@@ -256,7 +259,7 @@ export function OutgoingLogList() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[150px]">Date</TableHead>
+                    <TableHead className="w-[180px]">Date & Time</TableHead>
                     <TableHead>Gate Pass ID</TableHead>
                     <TableHead>Customer Name</TableHead>
                     <TableHead className="text-right">Total Items</TableHead>
@@ -267,7 +270,7 @@ export function OutgoingLogList() {
                 <TableBody>
                   {gatePasses.map((pass) => (
                     <TableRow key={pass.id}>
-                      <TableCell>{format(new Date(pass.date), "MMM dd, yyyy")}</TableCell>
+                      <TableCell>{pass.date ? format(new Date(pass.date), "MMM dd, yyyy p") : "N/A"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="font-mono">{pass.id.substring(1, 9)}...</Badge>
                       </TableCell>
@@ -290,5 +293,3 @@ export function OutgoingLogList() {
     </>
   );
 }
-
-    

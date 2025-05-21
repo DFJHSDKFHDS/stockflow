@@ -44,8 +44,8 @@ export interface OutgoingLog extends StockLog {
 export interface GatePassGenerationData {
   productName: string;
   quantity: number;
-  customerName: string; // Changed from destination
-  date: string; // Formatted date string
+  customerName: string; 
+  date: string; // Formatted date string, now includes time
   qrCodeData: string; // Data to be embedded in QR code
 }
 
@@ -55,8 +55,7 @@ export interface GatePassItem {
   name: string; // Denormalized product name
   sku: string; // Denormalized SKU
   quantity: number;
-  imageUrl: string; // Changed: URL of the product image, defaults to "" if none
-  // unitPrice?: number; // Optional: if needed on the pass itself
+  imageUrl: string; 
 }
 
 export interface GatePass {
@@ -65,7 +64,7 @@ export interface GatePass {
   userName: string; // Display name/email of the user
   items: GatePassItem[];
   customerName: string; 
-  date: string; // Date of dispatch, e.g., "YYYY-MM-DD"
+  date: string; // Date & Time of dispatch, stored as ISO string
   totalQuantity: number;
   createdAt: string; // ISO string timestamp of when the pass was created
   qrCodeData: string; // Usually the GatePass ID itself, to look up details
@@ -81,5 +80,3 @@ export interface InventorySummary {
   incomingToday: number; // Count of units received today
   outgoingToday: number; // Count of units shipped today
 }
-
-    
