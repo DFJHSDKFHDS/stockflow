@@ -8,7 +8,7 @@ import * as z from "zod";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+// import { Textarea } from "@/components/ui/textarea"; // Reason field removed
 import {
   Form,
   FormControl,
@@ -18,12 +18,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, ArrowUpFromLine, Ticket, PlusCircle, Trash2, User, ShoppingCart, Search, XCircle, MinusCircle } from "lucide-react";
+import { CalendarIcon, Ticket, PlusCircle, User, ShoppingCart, Search, XCircle, MinusCircle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Product, GatePass, GatePassItem as AppGatePassItem } from "@/types"; // Renamed to avoid conflict
+import type { Product, GatePass, GatePassItem as AppGatePassItem } from "@/types";
 import { generateGatePass, type GenerateGatePassInput } from "@/ai/flows/generate-gate-pass";
 import { GatePassModal } from "@/components/gatepass/GatePassModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -38,8 +38,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 // Schema for the form fields related to dispatch details (not individual items)
 const outgoingFormDetailsSchema = z.object({
   dispatchedAt: z.date({ required_error: "Date of dispatch is required." }),
-  destination: z.string().min(3, "Destination is required."),
-  reason: z.string().min(3, "Reason for dispatch is required."),
+  customerName: z.string().min(3, "Customer Name is required."),
+  // reason: z.string().min(3, "Reason for dispatch is required."), // Removed
 });
 
 type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
@@ -129,8 +129,8 @@ export function OutgoingForm() {
     resolver: zodResolver(outgoingFormDetailsSchema),
     defaultValues: {
       dispatchedAt: new Date(),
-      destination: "",
-      reason: "",
+      customerName: "",
+      // reason: "", // Removed
     },
   });
 
@@ -282,8 +282,8 @@ export function OutgoingForm() {
       userId: user.uid,
       userName: userName,
       items: gatePassDbItems,
-      destination: values.destination,
-      reason: values.reason,
+      customerName: values.customerName,
+      // reason: values.reason, // Removed
       date: format(values.dispatchedAt, "yyyy-MM-dd"),
       totalQuantity: totalQuantity,
       createdAt: new Date().toISOString(),
@@ -319,8 +319,8 @@ export function OutgoingForm() {
 
       const aiInput: GenerateGatePassInput = {
         items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
-        destination: values.destination,
-        reason: values.reason,
+        customerName: values.customerName,
+        // reason: values.reason, // Removed
         date: format(values.dispatchedAt, "PPP"),
         userName: userName,
         qrCodeData: gatePassId,
@@ -332,7 +332,7 @@ export function OutgoingForm() {
       setShowGatePassModal(true);
       
       // Reset form and selected items
-      form.reset({ dispatchedAt: new Date(), destination: "", reason: "" });
+      form.reset({ dispatchedAt: new Date(), customerName: "" /*, reason: ""*/ }); // Reason removed
       setSelectedItems([]);
 
     } catch (error: any) {
@@ -485,12 +485,12 @@ export function OutgoingForm() {
                 <div className="space-y-3 pt-2">
                   <FormField
                     control={form.control}
-                    name="destination"
+                    name="customerName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm">Destination</FormLabel>
+                        <FormLabel className="text-sm">Customer Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Customer X, Warehouse B" {...field} disabled={isSubmitting} />
+                          <Input placeholder="e.g., Customer X, Retail Partner Y" {...field} disabled={isSubmitting} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -523,6 +523,7 @@ export function OutgoingForm() {
                       </FormItem>
                     )}
                   />
+                  {/* Reason field removed
                   <FormField
                     control={form.control}
                     name="reason"
@@ -536,6 +537,7 @@ export function OutgoingForm() {
                       </FormItem>
                     )}
                   />
+                  */}
                 </div>
               </CardContent>
               
@@ -556,3 +558,5 @@ export function OutgoingForm() {
     </>
   );
 }
+
+    

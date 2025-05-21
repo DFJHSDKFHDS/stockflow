@@ -16,13 +16,12 @@ import {z} from 'genkit';
 const GatePassItemSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   quantity: z.number().describe('The quantity of this product being shipped.'),
-  // sku: z.string().optional().describe('The SKU of the product, if available.'), // Optional
 });
 
 const GenerateGatePassInputSchema = z.object({
   items: z.array(GatePassItemSchema).min(1).describe('A list of products included in this gate pass.'),
-  destination: z.string().describe('The destination of the shipment.'),
-  reason: z.string().describe('The reason for the shipment (e.g., Sale, Transfer).'),
+  customerName: z.string().describe('The name of the customer or entity receiving the shipment.'),
+  // reason: z.string().describe('The reason for the shipment (e.g., Sale, Transfer).'), // Removed
   date: z.string().describe('The date of the shipment (e.g., Month DD, YYYY).'),
   userName: z.string().describe('Name of the user/staff creating or authorizing the gate pass.'),
   qrCodeData: z.string().describe('Unique Gate Pass ID or data to be encoded in the QR code for verification.'),
@@ -47,8 +46,7 @@ The pass must be optimized for printing on a thermal printer, meaning it should 
 
 Gate Pass Details:
 --------------------
-Destination: {{{destination}}}
-Reason for Dispatch: {{{reason}}}
+Customer Name: {{{customerName}}}
 Date: {{{date}}}
 Authorized by: {{{userName}}}
 Gate Pass ID (for QR): {{{qrCodeData}}}
@@ -63,7 +61,7 @@ Items:
 Instructions:
 1. Create a clear header, like "GATE PASS" or "MATERIAL DISPATCH NOTE".
 2. List all items clearly. For each item, show Product Name and Quantity.
-3. Include Destination, Reason, Date, and Authorized By fields.
+3. Include Customer Name, Date, and Authorized By fields.
 4. Crucially, include a placeholder text like "[QR Code for Gate Pass ID: {{{qrCodeData}}}]". This indicates where a QR code image would be printed. The actual QR image generation is handled separately.
 5. Ensure the layout is compact and readable on a small thermal printer slip. Use line breaks effectively.
 6. Add a simple footer, perhaps with a line for "Receiver's Signature" or a thank you note.
@@ -91,3 +89,5 @@ const generateGatePassFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

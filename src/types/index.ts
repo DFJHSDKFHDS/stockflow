@@ -35,8 +35,8 @@ export interface IncomingLog extends StockLog {
 // while GatePass handles grouped items for a formal pass.
 export interface OutgoingLog extends StockLog {
   type: 'outgoing';
-  destination: string;
-  reason: string; // e.g., Sale, Internal Use, Damaged
+  destination: string; // Kept for generic log, GatePass uses customerName
+  reason: string; // Kept for generic log
   gatePassId?: string; // Optional: if this log entry is part of a formal gate pass
 }
 
@@ -44,8 +44,8 @@ export interface OutgoingLog extends StockLog {
 export interface GatePassGenerationData {
   productName: string;
   quantity: number;
-  destination: string;
-  reason: string;
+  customerName: string; // Changed from destination
+  // reason: string; // Removed
   date: string; // Formatted date string
   qrCodeData: string; // Data to be embedded in QR code
 }
@@ -64,8 +64,8 @@ export interface GatePass {
   userId: string; // UID of the user who created the pass
   userName: string; // Display name/email of the user
   items: GatePassItem[];
-  destination: string;
-  reason: string;
+  customerName: string; // Changed from destination
+  // reason?: string; // Removed reason
   date: string; // Date of dispatch, e.g., "YYYY-MM-DD"
   totalQuantity: number;
   createdAt: string; // ISO string timestamp of when the pass was created
@@ -82,3 +82,5 @@ export interface InventorySummary {
   incomingToday: number; // Count of units received today
   outgoingToday: number; // Count of units shipped today
 }
+
+    
