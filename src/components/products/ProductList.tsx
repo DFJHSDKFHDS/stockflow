@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Product } from "@/types";
-import { Edit, Trash2, PackageSearch, PlusCircle, ImageOff } from "lucide-react";
+import { Edit, Trash2, PackageSearch, PlusCircle, ImageOff, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -33,7 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogTrigger, // Keep this for the original AlertDialog structure if needed elsewhere
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,18 +41,23 @@ import { rtdb, storage } from "@/lib/firebase";
 import { ref as databaseRef, onValue, off, remove } from "firebase/database";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PasswordConfirmationModal } from "@/components/auth/PasswordConfirmationModal"; // Added
 
 export function ProductList() {
   const [products, setProducts] = React.useState<Product[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(true); // General page loading
+  const [isDeleting, setIsDeleting] = React.useState(false); // Specific to delete operation
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
+  const [productPendingDeletion, setProductPendingDeletion] = React.useState<Product | null>(null);
 
   React.useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      // setProducts([]); // Clear products if user logs out
+    if (authLoading || !user) {
+      if (!authLoading && !user) setProducts([]); // Clear products if user logs out
+      setIsLoading(authLoading);
       return;
     }
 
@@ -80,7 +85,7 @@ export function ProductList() {
     return () => {
       off(productsDbRef, 'value', listener);
     };
-  }, [user, toast]);
+  }, [user, authLoading, toast]);
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -88,14 +93,21 @@ export function ProductList() {
     (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleDelete = async (productToDelete: Product) => {
+  const triggerDeleteFlow = (product: Product) => {
     if (!user) return;
+    setProductPendingDeletion(product);
+    setIsPasswordModalOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!user || !productPendingDeletion) return;
+    
+    setIsDeleting(true);
     try {
-      // Delete from Realtime Database
+      const productToDelete = productPendingDeletion;
       const productDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/product/${productToDelete.id}`);
       await remove(productDbRef);
 
-      // Delete image from Storage if it exists
       if (productToDelete.imageUrl) {
         try {
             const imageStorageRef = storageRef(storage, productToDelete.imageUrl);
@@ -122,6 +134,9 @@ export function ProductList() {
         description: error.message || "Failed to delete product.",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
+      setProductPendingDeletion(null);
     }
   };
 
@@ -173,7 +188,7 @@ export function ProductList() {
         <h2 className="text-2xl font-semibold mb-2">No Products Found</h2>
         <p className="text-muted-foreground mb-4">Get started by adding your first product.</p>
         <Link href="/products/new" passHref>
-          <Button>
+          <Button disabled={authLoading}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
           </Button>
         </Link>
@@ -183,6 +198,18 @@ export function ProductList() {
 
 
   return (
+    <>
+    {productPendingDeletion && (
+        <PasswordConfirmationModal
+            isOpen={isPasswordModalOpen}
+            onClose={() => {
+                setIsPasswordModalOpen(false);
+                setProductPendingDeletion(null);
+            }}
+            onConfirm={executeDelete}
+            actionDescription={`delete the product "${productPendingDeletion.name}"`}
+        />
+    )}
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <Input
@@ -190,9 +217,10 @@ export function ProductList() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
+          disabled={authLoading || isDeleting}
         />
         <Link href="/products/new" passHref>
-          <Button>
+          <Button disabled={authLoading || isDeleting}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Product
           </Button>
         </Link>
@@ -213,7 +241,7 @@ export function ProductList() {
           </TableHeader>
           <TableBody>
             {filteredProducts.map((product) => (
-              <TableRow key={product.id}>
+              <TableRow key={product.id} className={(isDeleting && productPendingDeletion?.id === product.id) ? "opacity-50" : ""}>
                 <TableCell>
                   {product.imageUrl ? (
                     <Image
@@ -243,38 +271,26 @@ export function ProductList() {
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
+                      <Button variant="ghost" className="h-8 w-8 p-0" disabled={authLoading || isDeleting}>
                         <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
+                        {isDeleting && productPendingDeletion?.id === product.id 
+                            ? <Loader2 className="h-4 w-4 animate-spin" /> 
+                            : <MoreHorizontal className="h-4 w-4" />}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                       <DropdownMenuItem asChild>
+                       <DropdownMenuItem asChild disabled={isDeleting}>
                          <Link href={`/products/edit/${product.id}`}>
                             <Edit className="mr-2 h-4 w-4" /> Edit
                          </Link>
                        </DropdownMenuItem>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                       <DropdownMenuItem 
+                          onSelect={() => triggerDeleteFlow(product)} 
+                          className="text-destructive focus:text-destructive"
+                          disabled={isDeleting}
+                        >
                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete the product "{product.name}".
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(product)} className="bg-destructive hover:bg-destructive/90">
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -294,5 +310,6 @@ export function ProductList() {
          </div>
       )}
     </div>
+    </>
   );
 }

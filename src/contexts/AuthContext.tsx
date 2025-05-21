@@ -7,13 +7,15 @@ import {
   signOut as firebaseSignOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  EmailAuthProvider, // Added
+  reauthenticateWithCredential // Added
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-interface User extends FirebaseUser {} // Can extend with custom properties if needed
+interface User extends FirebaseUser {} 
 
 interface AuthContextType {
   user: User | null;
@@ -22,6 +24,7 @@ interface AuthContextType {
   signUp: (email: string, pass: string) => Promise<User | null>;
   signOut: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
+  reauthenticateCurrentPassword: (password: string) => Promise<void>; // Added
 }
 
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
@@ -43,10 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting the user state
       return userCredential.user as User;
     } catch (error) {
-      throw error; // Re-throw to be caught by the form
+      throw error; 
     } finally {
       setLoading(false);
     }
@@ -56,11 +58,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting the user state
-      // Firebase automatically signs in the user after successful creation.
       return userCredential.user as User;
     } catch (error) {
-      throw error; // Re-throw to be caught by the form
+      throw error; 
     } finally {
       setLoading(false);
     }
@@ -70,12 +70,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await firebaseSignOut(auth);
-      setUser(null); // Explicitly set user to null
+      setUser(null); 
       router.push("/login");
     } catch (error: any) {
       console.error("Sign out error:", error);
-      // Optionally, show a toast for sign-out errors, though less common
-      throw error; // Or handle more gracefully
+      throw error; 
     } finally {
       setLoading(false);
     }
@@ -85,16 +84,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      // Success toast is handled in the form component
     } catch (error: any) {
-      throw error; // Re-throw to be caught by the form
+      throw error; 
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reauthenticateCurrentPassword = async (password: string): Promise<void> => {
+    if (!user || !user.email) {
+      throw new Error("User not authenticated or email not available.");
+    }
+    setLoading(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, password);
+      await reauthenticateWithCredential(user, credential);
+    } catch (error) {
+      throw error; // Re-throw to be caught by the calling component
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, forgotPassword }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, forgotPassword, reauthenticateCurrentPassword }}>
       {children}
     </AuthContext.Provider>
   );

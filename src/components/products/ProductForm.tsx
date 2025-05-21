@@ -20,13 +20,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { Product } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PackagePlus, Save, UploadCloud } from "lucide-react";
+import { PackagePlus, Save, UploadCloud, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { storage, rtdb } from "@/lib/firebase";
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { ref as databaseRef, set, push, update } from "firebase/database";
+import { PasswordConfirmationModal } from "@/components/auth/PasswordConfirmationModal"; // Added
 
 const productSchema = z.object({
   name: z.string().min(3, "Product name must be at least 3 characters."),
@@ -36,7 +37,7 @@ const productSchema = z.object({
   currentStock: z.coerce.number().min(0, "Stock cannot be negative."),
   unitPrice: z.coerce.number().min(0, "Price cannot be negative.").optional(),
   supplier: z.string().optional(),
-  image: z.any().optional(), // For file input
+  image: z.any().optional(), 
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -82,7 +83,7 @@ const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<B
         } else {
           reject(new Error('Canvas to Blob conversion failed'));
         }
-      }, file.type || 'image/jpeg', 0.85); // quality 0.85
+      }, file.type || 'image/jpeg', 0.85); 
       URL.revokeObjectURL(img.src);
     };
     img.onerror = (error) => {
@@ -96,10 +97,13 @@ const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<B
 export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = React.useState(false);
   const [imagePreview, setImagePreview] = React.useState<string | null>(initialData?.imageUrl || null);
   const [selectedImageFile, setSelectedImageFile] = React.useState<File | null>(null);
+  
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
+  const [pendingFormValues, setPendingFormValues] = React.useState<ProductFormValues | null>(null);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -108,7 +112,7 @@ export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) 
           ...initialData,
           currentStock: initialData.currentStock || 0,
           unitPrice: initialData.unitPrice || 0,
-          image: undefined, // image is for new uploads only
+          image: undefined, 
         }
       : {
           name: "",
@@ -151,24 +155,31 @@ export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) 
     }
   };
 
-  async function onSubmit(values: ProductFormValues) {
+  const triggerPasswordConfirmation = (values: ProductFormValues) => {
     if (!user) {
       toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
       return;
     }
-    setIsLoading(true);
+    setPendingFormValues(values);
+    setIsPasswordModalOpen(true);
+  };
 
+  const processProductSubmission = async () => {
+    if (!user || !pendingFormValues) {
+      toast({ title: "Error", description: "User or form data missing.", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    const values = pendingFormValues;
     let imageUrl = initialData?.imageUrl || "";
 
     try {
       if (selectedImageFile) {
-        // Delete old image if editing and new image is uploaded
         if (initialData?.imageUrl) {
           try {
             const oldImageStorageRef = storageRef(storage, initialData.imageUrl);
             await deleteObject(oldImageStorageRef);
           } catch (error) {
-            // Log error but don't block submission if old image deletion fails
             console.warn("Failed to delete old product image:", error);
           }
         }
@@ -183,7 +194,7 @@ export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) 
         await new Promise<void>((resolve, reject) => {
           uploadTask.on(
             "state_changed",
-            null, // (snapshot) => { /* progress updates if needed */ },
+            null,
             (error) => reject(error),
             async () => {
               imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
@@ -201,17 +212,17 @@ export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) 
         currentStock: values.currentStock,
         unitPrice: values.unitPrice || 0,
         supplier: values.supplier || "",
-        imageUrl: imageUrl || "", // Ensure imageUrl is always a string
+        imageUrl: imageUrl || "",
         userId: user.uid,
         updatedAt: new Date().toISOString(),
       };
       
       let productId = initialData?.id;
 
-      if (initialData) { // Editing existing product
+      if (initialData) { 
         const productDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/product/${initialData.id}`);
         await update(productDbRef, productDataToSave);
-      } else { // Creating new product
+      } else { 
         const productsDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/product`);
         const newProductRef = push(productsDbRef);
         productId = newProductRef.key!;
@@ -236,7 +247,7 @@ export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) 
       if (onSubmitSuccess) {
         onSubmitSuccess(finalProductData);
       } else {
-        router.push("/products"); // Default redirect
+        router.push("/products"); 
       }
 
     } catch (error: any) {
@@ -248,172 +259,187 @@ export function ProductForm({ initialData, onSubmitSuccess }: ProductFormProps) 
       });
     } finally {
       setIsLoading(false);
+      setPendingFormValues(null);
+      setSelectedImageFile(null); // Clear selected file after submission attempt
     }
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {initialData ? <Save className="h-6 w-6 text-primary" /> : <PackagePlus className="h-6 w-6 text-primary" />}
-          {initialData ? "Edit Product" : "Register New Product"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <>
+      <PasswordConfirmationModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => {
+          setIsPasswordModalOpen(false);
+          setPendingFormValues(null); // Clear pending data if modal is closed without confirming
+        }}
+        onConfirm={processProductSubmission}
+        actionDescription={initialData ? "save changes to this product" : "add this new product"}
+      />
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {initialData ? <Save className="h-6 w-6 text-primary" /> : <PackagePlus className="h-6 w-6 text-primary" />}
+            {initialData ? "Edit Product" : "Register New Product"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            {/* Pass triggerPasswordConfirmation to form's onSubmit */}
+            <form onSubmit={form.handleSubmit(triggerPasswordConfirmation)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Product Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Laptop Pro" {...field} disabled={isLoading || authLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="sku"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SKU (Stock Keeping Unit)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., LP-001" {...field} disabled={isLoading || authLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
               <FormField
                 control={form.control}
-                name="name"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Product Name</FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Laptop Pro" {...field} disabled={isLoading} />
+                      <Textarea placeholder="Detailed product description..." {...field} disabled={isLoading || authLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="sku"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU (Stock Keeping Unit)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., LP-001" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Detailed product description..." {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
-            <FormField
-              control={form.control}
-              name="image"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Product Image</FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-4">
-                      {imagePreview ? (
-                        <Image
-                          src={imagePreview}
-                          alt="Product preview"
-                          width={80}
-                          height={80}
-                          className="rounded-md object-cover aspect-square"
-                          data-ai-hint="product image"
+              <FormField
+                control={form.control}
+                name="image"
+                render={({ field }) => ( // field is not directly used for value, but for form state
+                  <FormItem>
+                    <FormLabel>Product Image</FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-4">
+                        {imagePreview ? (
+                          <Image
+                            src={imagePreview}
+                            alt="Product preview"
+                            width={80}
+                            height={80}
+                            className="rounded-md object-cover aspect-square"
+                            data-ai-hint="product image"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 bg-muted rounded-md flex items-center justify-center" data-ai-hint="placeholder product">
+                            <UploadCloud className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        )}
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange} // Use specific handler
+                          disabled={isLoading || authLoading}
+                          className="flex-1"
                         />
-                      ) : (
-                        <div className="w-20 h-20 bg-muted rounded-md flex items-center justify-center" data-ai-hint="placeholder product">
-                          <UploadCloud className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageChange}
-                        disabled={isLoading}
-                        className="flex-1"
-                      />
-                    </div>
-                  </FormControl>
-                  <FormDescription>
-                    Max {MAX_IMAGE_SIZE_MB}MB. Recommended: 600x600px. (JPG, PNG, WEBP, GIF)
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Max {MAX_IMAGE_SIZE_MB}MB. Recommended: 600x600px. (JPG, PNG, WEBP, GIF)
+                    </FormDescription>
+                    <FormMessage /> {/* For image-specific errors if any */}
+                  </FormItem>
+                )}
+              />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Electronics" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="currentStock"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Initial Stock</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="0" {...field} disabled={isLoading || !!initialData /* Stock editing should be through incoming/outgoing logs */} />
-                    </FormControl>
-                     {initialData && <FormDescription>Stock is managed via Incoming/Outgoing logs.</FormDescription>}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Electronics" {...field} disabled={isLoading || authLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="currentStock"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Initial Stock</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} disabled={isLoading || authLoading || !!initialData} />
+                      </FormControl>
+                      {initialData && <FormDescription>Stock is managed via Incoming/Outgoing logs.</FormDescription>}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="unitPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit Price (Optional)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="0.00" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="supplier"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Supplier (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Supplier Inc." {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading || !user}>
-                {isLoading ? (initialData ? "Saving..." : "Registering...") : (initialData ? "Save Changes" : "Register Product")}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="unitPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit Price (Optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" placeholder="0.00" {...field} disabled={isLoading || authLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="supplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Supplier Inc." {...field} disabled={isLoading || authLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading || authLoading}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isLoading || authLoading || !user}>
+                  {isLoading || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isLoading ? (initialData ? "Saving..." : "Registering...") : (initialData ? "Save Changes" : "Register Product")}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </>
   );
 }
