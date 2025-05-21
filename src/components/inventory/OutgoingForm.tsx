@@ -45,7 +45,6 @@ type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
 // Interface for items selected in the cart
 interface SelectedItem extends AppGatePassItem {
   availableStock: number;
-  // imageUrl is already part of AppGatePassItem, no need to redefine
 }
 
 // Internal Product Card component for the selection pane
@@ -191,7 +190,7 @@ export function OutgoingForm() {
             sku: product.sku, 
             quantity: 1, 
             availableStock: product.currentStock,
-            imageUrl: product.imageUrl // Store imageUrl
+            imageUrl: product.imageUrl || "" // Ensure imageUrl is always a string
           }];
         }
         return prevItems;
@@ -270,7 +269,7 @@ export function OutgoingForm() {
       name: item.name,
       sku: item.sku,
       quantity: item.quantity,
-      imageUrl: item.imageUrl, // Save imageUrl
+      imageUrl: item.imageUrl, // This will be either the URL or ""
     }));
 
     const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);

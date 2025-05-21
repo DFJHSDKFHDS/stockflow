@@ -45,7 +45,6 @@ export interface GatePassGenerationData {
   productName: string;
   quantity: number;
   customerName: string; // Changed from destination
-  // reason: string; // Removed
   date: string; // Formatted date string
   qrCodeData: string; // Data to be embedded in QR code
 }
@@ -56,7 +55,7 @@ export interface GatePassItem {
   name: string; // Denormalized product name
   sku: string; // Denormalized SKU
   quantity: number;
-  imageUrl?: string; // Optional: URL of the product image at the time of pass creation
+  imageUrl: string; // Changed: URL of the product image, defaults to "" if none
   // unitPrice?: number; // Optional: if needed on the pass itself
 }
 
