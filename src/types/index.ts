@@ -56,6 +56,7 @@ export interface GatePassItem {
   name: string; // Denormalized product name
   sku: string; // Denormalized SKU
   quantity: number;
+  imageUrl?: string; // Optional: URL of the product image at the time of pass creation
   // unitPrice?: number; // Optional: if needed on the pass itself
 }
 
@@ -64,8 +65,7 @@ export interface GatePass {
   userId: string; // UID of the user who created the pass
   userName: string; // Display name/email of the user
   items: GatePassItem[];
-  customerName: string; // Changed from destination
-  // reason?: string; // Removed reason
+  customerName: string; 
   date: string; // Date of dispatch, e.g., "YYYY-MM-DD"
   totalQuantity: number;
   createdAt: string; // ISO string timestamp of when the pass was created

@@ -8,7 +8,6 @@ import * as z from "zod";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-// import { Textarea } from "@/components/ui/textarea"; // Reason field removed
 import {
   Form,
   FormControl,
@@ -18,7 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Ticket, PlusCircle, User, ShoppingCart, Search, XCircle, MinusCircle } from "lucide-react";
+import { CalendarIcon, Ticket, PlusCircle, User, ShoppingCart, Search, XCircle, MinusCircle, ImageOff } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -39,7 +38,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const outgoingFormDetailsSchema = z.object({
   dispatchedAt: z.date({ required_error: "Date of dispatch is required." }),
   customerName: z.string().min(3, "Customer Name is required."),
-  // reason: z.string().min(3, "Reason for dispatch is required."), // Removed
 });
 
 type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
@@ -47,6 +45,7 @@ type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
 // Interface for items selected in the cart
 interface SelectedItem extends AppGatePassItem {
   availableStock: number;
+  imageUrl?: string; // Added to carry image URL
 }
 
 // Internal Product Card component for the selection pane
@@ -61,7 +60,7 @@ const ProductSelectionCard = ({
 }) => (
   <Card
     className={cn(
-      "cursor-pointer hover:shadow-lg transition-all duration-200 ease-in-out overflow-hidden",
+      "cursor-pointer hover:shadow-lg transition-all duration-200 ease-in-out overflow-hidden group",
       product.currentStock === 0 ? "opacity-60 cursor-not-allowed bg-muted/50" : "hover:ring-2 hover:ring-primary",
       quantityInCart > 0 ? "ring-2 ring-primary shadow-md" : "border"
     )}
@@ -76,12 +75,12 @@ const ProductSelectionCard = ({
     }}
   >
     <CardContent className="p-0">
-      <div className="aspect-[4/3] w-full relative">
+      <div className="aspect-[4/3] w-full relative overflow-hidden">
         <Image
           src={product.imageUrl || `https://placehold.co/300x225.png?text=${encodeURIComponent(product.name.substring(0,15))}`}
           alt={product.name}
           fill
-          className="object-cover"
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
           data-ai-hint="product item"
         />
@@ -119,7 +118,7 @@ export function OutgoingForm() {
   
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showGatePassModal, setShowGatePassModal] = React.useState(false);
-  const [gatePassContent, setGatePassContent] = React.useState("");
+  const [gatePassContentForModal, setGatePassContentForModal] = React.useState(""); // Renamed
   const [qrCodeDataForPass, setQrCodeDataForPass] = React.useState("");
 
   const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
@@ -130,7 +129,6 @@ export function OutgoingForm() {
     defaultValues: {
       dispatchedAt: new Date(),
       customerName: "",
-      // reason: "", // Removed
     },
   });
 
@@ -192,7 +190,8 @@ export function OutgoingForm() {
             name: product.name, 
             sku: product.sku, 
             quantity: 1, 
-            availableStock: product.currentStock 
+            availableStock: product.currentStock,
+            imageUrl: product.imageUrl // Store imageUrl
           }];
         }
         return prevItems;
@@ -237,7 +236,6 @@ export function OutgoingForm() {
       toast({ title: "No Items", description: "Please select at least one product.", variant: "destructive" });
       return;
     }
-    // Re-validate stock just before submission
     let stockError = false;
     selectedItems.forEach(item => {
       const productDetails = allProducts.find(p => p.id === item.productId);
@@ -272,22 +270,41 @@ export function OutgoingForm() {
       name: item.name,
       sku: item.sku,
       quantity: item.quantity,
+      imageUrl: item.imageUrl, // Save imageUrl
     }));
 
     const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
     const userName = user.displayName || user.email || "N/A";
 
+    const aiInputForPassGeneration: GenerateGatePassInput = {
+      items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
+      customerName: values.customerName,
+      date: format(values.dispatchedAt, "PPP"),
+      userName: userName,
+      qrCodeData: gatePassId,
+    };
+
+    let generatedAiContent = "";
+    try {
+      const aiResult = await generateGatePass(aiInputForPassGeneration);
+      generatedAiContent = aiResult.gatePass;
+    } catch (aiError: any) {
+      console.error("AI Gate Pass generation failed:", aiError);
+      toast({ title: "AI Generation Warning", description: "Could not generate printable slip content from AI. Gate pass will be logged without it.", variant: "default" });
+      // Proceed without AI content if it fails
+    }
+    
     const gatePassData: GatePass = {
       id: gatePassId,
       userId: user.uid,
       userName: userName,
       items: gatePassDbItems,
       customerName: values.customerName,
-      // reason: values.reason, // Removed
       date: format(values.dispatchedAt, "yyyy-MM-dd"),
       totalQuantity: totalQuantity,
       createdAt: new Date().toISOString(),
       qrCodeData: gatePassId,
+      generatedPassContent: generatedAiContent, // Store AI content
     };
 
     const stockUpdates: { [key: string]: any } = {};
@@ -316,23 +333,17 @@ export function OutgoingForm() {
       await update(databaseRef(rtdb), stockUpdates);
 
       toast({ title: "Gate Pass Logged & Stock Updated", description: "Successfully recorded outgoing items." });
-
-      const aiInput: GenerateGatePassInput = {
-        items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
-        customerName: values.customerName,
-        // reason: values.reason, // Removed
-        date: format(values.dispatchedAt, "PPP"),
-        userName: userName,
-        qrCodeData: gatePassId,
-      };
       
-      const aiResult = await generateGatePass(aiInput);
-      setGatePassContent(aiResult.gatePass);
-      setQrCodeDataForPass(gatePassId);
-      setShowGatePassModal(true);
+      if (generatedAiContent) {
+        setGatePassContentForModal(generatedAiContent);
+        setQrCodeDataForPass(gatePassId);
+        setShowGatePassModal(true);
+      } else {
+         // If AI content failed, maybe show a simpler confirmation or the POS-style summary directly
+        toast({ title: "Gate Pass Logged", description: "Details saved. Printable slip AI generation failed." });
+      }
       
-      // Reset form and selected items
-      form.reset({ dispatchedAt: new Date(), customerName: "" /*, reason: ""*/ }); // Reason removed
+      form.reset({ dispatchedAt: new Date(), customerName: "" });
       setSelectedItems([]);
 
     } catch (error: any) {
@@ -357,7 +368,7 @@ export function OutgoingForm() {
       <GatePassModal
         isOpen={showGatePassModal}
         onClose={() => setShowGatePassModal(false)}
-        gatePassContent={gatePassContent}
+        gatePassContent={gatePassContentForModal}
         qrCodeData={qrCodeDataForPass}
       />
 
@@ -439,6 +450,13 @@ export function OutgoingForm() {
                     <div className="space-y-2">
                       {selectedItems.map(item => (
                         <div key={item.productId} className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                           {item.imageUrl ? (
+                            <Image src={item.imageUrl} alt={item.name} width={32} height={32} className="h-8 w-8 rounded object-cover" data-ai-hint="product item" />
+                          ) : (
+                            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center" data-ai-hint="placeholder item">
+                              <ImageOff className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
                           <div className="flex-grow">
                             <p className="text-sm font-medium truncate" title={item.name}>{item.name}</p>
                             <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
@@ -523,21 +541,6 @@ export function OutgoingForm() {
                       </FormItem>
                     )}
                   />
-                  {/* Reason field removed
-                  <FormField
-                    control={form.control}
-                    name="reason"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm">Reason for Dispatch</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="e.g., Sale, Internal Transfer, Return..." {...field} disabled={isSubmitting} className="min-h-[60px]" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  */}
                 </div>
               </CardContent>
               
