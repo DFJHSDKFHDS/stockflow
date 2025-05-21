@@ -80,11 +80,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar collapsible="icon" variant="sidebar" className="border-r">
+      <Sidebar collapsible="offcanvas" variant="sidebar" className="border-r">
         <SidebarHeader className="p-4">
           <div className="flex items-center justify-between">
-             <Logo showText={false} className="group-data-[collapsible=icon]:hidden"/>
-             <Logo showText={false} className="hidden group-data-[collapsible=icon]:block"/>
+             <Logo showText={true} />
           </div>
         </SidebarHeader>
         <ScrollArea className="flex-grow">
@@ -99,10 +98,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     tooltip={{ children: item.label, side: 'right', className: 'ml-2' }}
                   >
                     <item.icon className="h-5 w-5" />
-                    <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    {/* Text labels will now always show when sidebar is open, as group-data-[collapsible=icon] won't apply */}
+                    <span>{item.label}</span>
                   </SidebarMenuButton>
                 </Link>
-                {item.badge && <SidebarMenuBadge className="group-data-[collapsible=icon]:hidden">{item.badge}</SidebarMenuBadge>}
+                {item.badge && <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>}
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -111,12 +111,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-4 mt-auto border-t">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start group-data-[collapsible=icon]:justify-center p-2">
+              <Button variant="ghost" className="w-full justify-start p-2"> {/* Removed group-data-[collapsible=icon]:justify-center */}
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || user?.email || "User"} />
                   <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
                 </Avatar>
-                <div className="ml-2 text-left group-data-[collapsible=icon]:hidden">
+                {/* Text will now always show when sidebar is open */}
+                <div className="ml-2 text-left"> 
                   <p className="text-sm font-medium truncate">{user?.displayName || user?.email}</p>
                   <p className="text-xs text-muted-foreground">View Profile</p>
                 </div>
@@ -139,7 +140,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-4">
-            <SidebarTrigger className="md:hidden" /> {/* Mobile toggle */}
+            <SidebarTrigger /> {/* Removed md:hidden to make it visible on all screen sizes */}
             <div className="flex-1">
               <h1 className="text-xl font-semibold">
                 {navItems.find(item => pathname.startsWith(item.href) && (item.href === "/" ? pathname === "/" : true))?.label || "StockFlow"}
