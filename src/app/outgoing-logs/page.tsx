@@ -4,7 +4,7 @@ import { OutgoingLogList } from "@/components/inventory/OutgoingLogList";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Outgoing Logs - StockFlow',
+  title: 'Outgoing Stock - StockFlow',
   description: 'View history of outgoing products and gate passes.',
 };
 
@@ -15,5 +15,3 @@ export default function OutgoingLogsPage() {
     </AppLayout>
   );
 }
-
-    

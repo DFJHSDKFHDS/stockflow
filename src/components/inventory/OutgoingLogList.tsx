@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { GatePass, GatePassItem } from "@/types";
-import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, User as UserIcon, ImageOff, Printer } from "lucide-react"; 
+import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, Printer, ImageOff } from "lucide-react"; 
+import { User as UserIcon } from "lucide-react"; // Renamed to avoid conflict if needed
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
 import { ref as databaseRef, onValue, off } from "firebase/database";
@@ -129,7 +130,7 @@ export function OutgoingLogList() {
           setIsDetailsModalOpen(isOpen);
           if (!isOpen) setSelectedPass(null);
       }}>
-        <DialogContent className="sm:max-w-2xl"> {/* Increased width for better layout */}
+        <DialogContent className="sm:max-w-2xl"> 
           <DialogHeader>
             <DialogTitle>Gate Pass Summary</DialogTitle>
             <DialogDescription>
@@ -156,8 +157,8 @@ export function OutgoingLogList() {
                             </span>
                         </div>
                         <div className="flex items-center">
-                            <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>Authorized By:</strong> <span className="ml-1">{selectedPass.userName}</span>
+                          <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
+                          <strong>Authorized By:</strong> <span className="ml-1">{selectedPass.userName}</span>
                         </div>
                          <div className="flex items-center">
                             <ShoppingBag className="mr-2 h-5 w-5 text-muted-foreground" />
@@ -236,7 +237,6 @@ export function OutgoingLogList() {
         </DialogContent>
       </Dialog>
 
-      {/* Printable Slip Modal (existing GatePassModal) */}
       {selectedPass && selectedPass.generatedPassContent && (
         <GatePassModal
           isOpen={isPrintableSlipModalOpen}
@@ -248,12 +248,12 @@ export function OutgoingLogList() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><FileText className="h-6 w-6 text-primary" /> Outgoing Logs</CardTitle>
+          <CardTitle className="flex items-center gap-2"><FileText className="h-6 w-6 text-primary" /> Outgoing Stock</CardTitle>
           <CardDescription>History of all generated gate passes and outgoing product movements.</CardDescription>
         </CardHeader>
         <CardContent>
           {gatePasses.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No outgoing logs found.</p>
+            <p className="text-muted-foreground text-center py-8">No outgoing stock entries found.</p>
           ) : (
             <div className="rounded-md border shadow-sm">
               <Table>

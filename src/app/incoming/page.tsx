@@ -4,7 +4,7 @@ import { IncomingForm } from "@/components/inventory/IncomingForm";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Log Incoming Products - StockFlow',
+  title: 'Log Incoming Stock - StockFlow',
   description: 'Record new stock arrivals.',
 };
 

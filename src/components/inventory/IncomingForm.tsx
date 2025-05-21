@@ -33,8 +33,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 // Mock product list
 const mockProducts: Product[] = [
-  { id: "1", name: "Laptop Pro 15", sku: "LP-001", currentStock: 50, createdAt: new Date(), updatedAt: new Date(), userId: "user1", description: "High-performance laptop" },
-  { id: "2", name: "Wireless Mouse", sku: "WM-002", currentStock: 150, createdAt: new Date(), updatedAt: new Date(), userId: "user1", description: "Ergonomic wireless mouse" },
+  { id: "1", name: "Laptop Pro 15", sku: "LP-001", currentStock: 50, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), userId: "user1", description: "High-performance laptop", imageUrl:"" },
+  { id: "2", name: "Wireless Mouse", sku: "WM-002", currentStock: 150, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), userId: "user1", description: "Ergonomic wireless mouse", imageUrl:"" },
 ];
 
 const incomingLogSchema = z.object({
@@ -77,7 +77,7 @@ export function IncomingForm() {
         id: Math.random().toString(36).substring(2, 15),
         ...values,
         productName: selectedProduct.name,
-        timestamp: values.receivedAt,
+        timestamp: values.receivedAt.toISOString(),
         type: 'incoming',
         userId: "mockUserId", // Replace with actual userId
     };
@@ -106,7 +106,7 @@ export function IncomingForm() {
   return (
     <Card className="max-w-xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><ArrowDownToLine className="h-6 w-6 text-primary" /> Log Incoming Products</CardTitle>
+        <CardTitle className="flex items-center gap-2"><ArrowDownToLine className="h-6 w-6 text-primary" /> Log Incoming Stock</CardTitle>
         <CardDescription>Record new stock arrivals to update your inventory.</CardDescription>
       </CardHeader>
       <CardContent>
