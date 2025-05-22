@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview Generates a gate pass for outgoing products, optimized for thermal printers.
- * Can include multiple products and a QR code linking to the gate pass details.
+ * @fileOverview DEPRECATED: Gate pass content is now generated directly in OutgoingForm.tsx.
+ * This file is kept for potential future AI features but is not currently used for gate pass content.
  *
  * - generateGatePass - A function that handles the gate pass generation process.
  * - GenerateGatePassInput - The input type for the generateGatePass function.
@@ -33,9 +33,16 @@ const GenerateGatePassOutputSchema = z.object({
 });
 export type GenerateGatePassOutput = z.infer<typeof GenerateGatePassOutputSchema>;
 
+// This function is no longer called by OutgoingForm.tsx for content generation.
+// It can be removed or repurposed if no other part of the system uses it.
 export async function generateGatePass(input: GenerateGatePassInput): Promise<GenerateGatePassOutput> {
-  return generateGatePassFlow(input);
+  // console.warn("generateGatePass AI flow was called, but content generation has moved to OutgoingForm.tsx");
+  // Returning a minimal or empty response as AI content generation is deprecated here.
+  return { gatePass: "Gate pass content is now generated directly by the application." };
 }
+
+/*
+// AI Prompt and Flow definition are removed as they are no longer used.
 
 const prompt = ai.definePrompt({
   name: 'generateGatePassPrompt',
@@ -91,3 +98,4 @@ const generateGatePassFlow = ai.defineFlow(
     return output;
   }
 );
+*/

@@ -22,8 +22,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Product, GatePass, GatePassItem as AppGatePassItem } from "@/types";
-import { generateGatePass, type GenerateGatePassInput } from "@/ai/flows/generate-gate-pass";
+import type { Product, GatePass, GatePassItem as AppGatePassItem, UserProfileData } from "@/types";
+// import { generateGatePass, type GenerateGatePassInput } from "@/ai/flows/generate-gate-pass"; // Removed AI flow import
 import { GatePassModal } from "@/components/gatepass/GatePassModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -246,10 +246,55 @@ export function OutgoingForm() {
     setIsPasswordModalOpen(true);
   };
 
+  const generatePlainTextGatePass = (
+    gatePassNumber: number,
+    customerName: string,
+    dispatchDateTime: Date,
+    userName: string,
+    gatePassId: string,
+    items: AppGatePassItem[],
+    totalQuantity: number,
+    profileData: UserProfileData | null
+  ): string => {
+    const pad = (str: string | number, len: number, char = ' ') => String(str).padEnd(len, char);
+    const padStart = (str: string | number, len: number, char = ' ') => String(str).padStart(len, char);
+  
+    let content = `
+            GET PASS
+--------------------------------------
+       ${profileData?.shopName || 'Your Shop Name'}
+ ${profileData?.address || 'Shop Address'}
+     Contact: ${profileData?.contactNo || 'Shop Contact'}
+--------------------------------------
+Gate Pass No. : ${gatePassNumber}
+Date & Time   : ${format(dispatchDateTime, "PPpp")}
+Customer Name : ${customerName}
+Authorized By : ${userName}
+Gate Pass ID  : ${gatePassId} (For QR)
+--------------------------------------
+S.N. ${pad('Product (SKU)', 30)} ${padStart('Qty', 3)}
+--------------------------------------
+`;
+  
+    items.forEach((item, index) => {
+      const productString = `${item.name} (${item.sku || 'N/A'})`;
+      content += `${padStart(index + 1, 3)}. ${pad(productString, 30)} ${padStart(item.quantity, 3)}\n`;
+    });
+  
+    content += `--------------------------------------
+Total Quantity:${padStart(totalQuantity, 27)}
+--------------------------------------
+
+     Receiver's Signature
+--------------------------------------
+`;
+    return content.trim();
+  };
+
   const processGatePassCreation = async () => {
     if (!user || !pendingFormValues || selectedItems.length === 0) {
       toast({ title: "Error", description: "User, form data, or selected items missing.", variant: "destructive" });
-      setIsSubmitting(false); // Ensure submitting is false
+      setIsSubmitting(false); 
       return;
     }
     setIsSubmitting(true);
@@ -300,23 +345,29 @@ export function OutgoingForm() {
       const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
       const userName = user.displayName || user.email || "N/A";
 
-      const aiInputForPassGeneration: GenerateGatePassInput = {
-        items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
-        customerName: values.customerName,
-        date: format(finalDispatchDateTime, "PPPp"),
-        userName: userName,
-        qrCodeData: gatePassId,
-        gatePassNumber: newGatePassNumber,
-      };
-
-      let generatedAiContent = "";
+      // Fetch profile data
+      let userProfileData: UserProfileData | null = null;
       try {
-        const aiResult = await generateGatePass(aiInputForPassGeneration);
-        generatedAiContent = aiResult.gatePass;
-      } catch (aiError: any) {
-        console.error("AI Gate Pass generation failed:", aiError);
-        toast({ title: "AI Generation Warning", description: "Could not generate printable slip content from AI. Gate pass will be logged without it.", variant: "default" });
+        const profileDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/profileData`);
+        const profileSnapshot = await get(profileDbRef);
+        if (profileSnapshot.exists()) {
+          userProfileData = profileSnapshot.val() as UserProfileData;
+        }
+      } catch (profileError) {
+        console.warn("Could not fetch user profile data for gate pass:", profileError);
+        toast({title: "Profile Data Notice", description: "Could not fetch shop details for the pass. Using defaults.", variant: "default"});
       }
+      
+      const generatedAiContent = generatePlainTextGatePass(
+        newGatePassNumber,
+        values.customerName,
+        finalDispatchDateTime,
+        userName,
+        gatePassId,
+        gatePassDbItems,
+        totalQuantity,
+        userProfileData
+      );
       
       const gatePassData: GatePass = {
         id: gatePassId,
@@ -345,9 +396,8 @@ export function OutgoingForm() {
         const currentStock = currentStockSnapshot.val();
 
         if (typeof currentStock !== 'number' || item.quantity > currentStock) {
-          // Rollback counter if stock check fails before saving pass
           await runTransaction(lastGatePassNumberRef, (currentData) => {
-            if (currentData !== null && currentData >= newGatePassNumber) { // only decrement if it was indeed incremented
+            if (currentData !== null && currentData >= newGatePassNumber) { 
               return currentData - 1;
             }
             return currentData;
@@ -365,24 +415,20 @@ export function OutgoingForm() {
 
       toast({ title: "Gate Pass Logged & Stock Updated", description: "Successfully recorded outgoing items." });
       
-      if (generatedAiContent) {
-        setGatePassContentForModal(generatedAiContent);
-        setQrCodeDataForPass(gatePassId);
-        setShowGatePassModal(true);
-      } else {
-        toast({ title: "Gate Pass Logged", description: "Details saved. Printable slip AI generation failed." });
-      }
+      setGatePassContentForModal(generatedAiContent);
+      setQrCodeDataForPass(gatePassId);
+      setShowGatePassModal(true);
       
       form.reset({ dispatchedAt: new Date(), customerName: "" });
       setSelectedItems([]);
 
-    } catch (error: any) {
+    } catch (error: any)
+{
       console.error("Error processing gate pass:", error);
       toast({ title: "Processing Error", description: error.message || "Failed to process gate pass and update stock.", variant: "destructive" });
-      // Attempt to rollback counter on general error after successful increment
-      if (newGatePassNumber) { // Check if newGatePassNumber was set
+      if (newGatePassNumber) { 
           await runTransaction(lastGatePassNumberRef, (currentData) => {
-            if (currentData !== null && currentData === newGatePassNumber) { // only decrement if it's the one we set
+            if (currentData !== null && currentData === newGatePassNumber) { 
               return currentData - 1;
             }
             return currentData;
