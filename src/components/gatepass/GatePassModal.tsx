@@ -11,41 +11,44 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import Image from "next/image";
-import { Printer, Copy, Download } from "lucide-react";
+import { Printer, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { QRCodeCanvas } from 'qrcode.react'; // Import QRCodeCanvas
 
 interface GatePassModalProps {
   isOpen: boolean;
   onClose: () => void;
   gatePassContent: string;
-  qrCodeData: string; // For display purposes or future actual QR generation
+  qrCodeData: string; 
 }
 
 export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: GatePassModalProps) {
   const { toast } = useToast();
-  const [qrCodeUrl, setQrCodeUrl] = React.useState('');
-
-  React.useEffect(() => {
-    if (qrCodeData) {
-      // For a real QR code, you'd use a library to generate an image/SVG
-      // or use an API. For now, using a placeholder.
-      const placeholderQr = `https://placehold.co/150x150.png?text=ID:\n${encodeURIComponent(qrCodeData.substring(0,15))}`;
-      setQrCodeUrl(placeholderQr);
-    }
-  }, [qrCodeData]);
+  const qrCanvasId = "qr-canvas-for-print"; // ID for the canvas
 
   const handlePrint = () => {
-    // Basic print functionality
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+      let qrImageForPrint = '';
+      const canvasElement = document.getElementById(qrCanvasId) as HTMLCanvasElement;
+      if (canvasElement) {
+        try {
+          qrImageForPrint = canvasElement.toDataURL('image/png');
+        } catch (e) {
+          console.error("Error converting canvas to DataURL:", e);
+          toast({ title: "QR Print Error", description: "Could not generate QR code image for printing.", variant: "destructive"});
+        }
+      }
+
       printWindow.document.write('<html><head><title>Gate Pass</title>');
-      printWindow.document.write('<style>body { font-family: monospace; white-space: pre-wrap; margin: 20px; } .qr-code { margin-top: 20px; text-align: center; } img { max-width: 150px; } </style>');
+      printWindow.document.write('<style>body { font-family: monospace; white-space: pre-wrap; margin: 20px; } .qr-code-container { margin-top: 20px; text-align: center; } .qr-code-container img { max-width: 150px; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write(gatePassContent.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
-      if (qrCodeUrl) {
-        printWindow.document.write(`<div class="qr-code"><img src="${qrCodeUrl}" alt="QR Code for ${qrCodeData}" /></div>`);
+      if (qrImageForPrint) {
+        printWindow.document.write(`<div class="qr-code-container"><img src="${qrImageForPrint}" alt="QR Code for ${qrCodeData}" /></div>`);
+      } else if (qrCodeData) {
+         printWindow.document.write(`<div class="qr-code-container"><p>[QR Code for Gate Pass ID: ${qrCodeData}]</p></div>`);
       }
       printWindow.document.write('</body></html>');
       printWindow.document.close();
@@ -74,9 +77,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
           <pre className="text-sm font-mono whitespace-pre-wrap break-all">
             {gatePassContent}
           </pre>
-          {qrCodeUrl && (
-            <div className="mt-4 text-center" data-ai-hint="qr code">
-              <Image src={qrCodeUrl} alt="QR Code Placeholder" width={150} height={150} />
+          {qrCodeData && (
+            <div className="mt-4 text-center">
+              <QRCodeCanvas id={qrCanvasId} value={qrCodeData} size={150} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} style={{display: 'block', margin: '0 auto'}} />
               <p className="text-xs text-muted-foreground mt-1">QR Code (Data: {qrCodeData.substring(0,30)}...)</p>
             </div>
           )}

@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info } from "lucide-react";
+import { QRCodeSVG } from 'qrcode.react'; // Import QRCodeSVG
 
 // Placeholder for QR Scanner component - you'd integrate a library here
 // For example, using html5-qrcode:
@@ -92,10 +93,10 @@ export function GatePassScanner() {
   }, [toast]);
   
   React.useEffect(() => {
-    if (scannedPassId && user) { // Ensure user is available before fetching
+    if (scannedPassId && user) { 
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]); // Added user to dependency array
+  }, [scannedPassId, user]); 
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -251,15 +252,9 @@ export function GatePassScanner() {
                         <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{fetchedPass.qrCodeData}</span>
                     </div>
                     {fetchedPass.qrCodeData && (
-                        <div className="mt-3 pt-3 border-t flex flex-col items-center" data-ai-hint="qr code">
-                        <Image 
-                            src={`https://placehold.co/120x120.png?text=ID:\n${encodeURIComponent(fetchedPass.qrCodeData.substring(0,15))}`} 
-                            alt="QR Code Placeholder" 
-                            width={120} 
-                            height={120}
-                            className="rounded-md"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
+                        <div className="mt-3 pt-3 border-t flex flex-col items-center">
+                          <QRCodeSVG value={fetchedPass.qrCodeData} size={120} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} />
+                          <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
                         </div>
                     )}
                 </CardContent>
@@ -320,5 +315,3 @@ export function GatePassScanner() {
     </Card>
   );
 }
-
-    

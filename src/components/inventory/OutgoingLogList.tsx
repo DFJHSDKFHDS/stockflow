@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { GatePass, GatePassItem } from "@/types";
 import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, Printer, ImageOff } from "lucide-react"; 
-import { User as UserIcon } from "lucide-react"; // Renamed to avoid conflict if needed
+import { User as UserIcon } from "lucide-react"; 
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
 import { ref as databaseRef, onValue, off } from "firebase/database";
@@ -34,6 +34,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Image from "next/image";
 import { GatePassModal } from "@/components/gatepass/GatePassModal"; 
+import { QRCodeSVG } from 'qrcode.react'; // Import QRCodeSVG
 
 export function OutgoingLogList() {
   const [gatePasses, setGatePasses] = React.useState<GatePass[]>([]);
@@ -125,7 +126,6 @@ export function OutgoingLogList() {
 
   return (
     <>
-      {/* POS-Style Details Dialog */}
       <Dialog open={isDetailsModalOpen} onOpenChange={(isOpen) => {
           setIsDetailsModalOpen(isOpen);
           if (!isOpen) setSelectedPass(null);
@@ -169,15 +169,9 @@ export function OutgoingLogList() {
                             <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{selectedPass.qrCodeData}</span>
                         </div>
                         {selectedPass.qrCodeData && (
-                            <div className="mt-3 pt-3 border-t flex flex-col items-center" data-ai-hint="qr code">
-                            <Image 
-                                src={`https://placehold.co/120x120.png?text=ID:\n${encodeURIComponent(selectedPass.qrCodeData.substring(0,15))}`} 
-                                alt="QR Code Placeholder" 
-                                width={120} 
-                                height={120}
-                                className="rounded-md"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
+                            <div className="mt-3 pt-3 border-t flex flex-col items-center">
+                              <QRCodeSVG value={selectedPass.qrCodeData} size={120} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} />
+                              <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
                             </div>
                         )}
                     </CardContent>
