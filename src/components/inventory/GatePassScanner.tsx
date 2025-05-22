@@ -17,86 +17,115 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info } from "lucide-react";
-import { QRCodeSVG } from 'qrcode.react'; // Import QRCodeSVG
-
-// Placeholder for QR Scanner component - you'd integrate a library here
-// For example, using html5-qrcode:
-// import { Html5QrcodeScanner } from 'html5-qrcode';
+import { QRCodeSVG } from 'qrcode.react';
+import { Html5QrcodeScanner, ScanType } from 'html5-qrcode';
 
 export function GatePassScanner() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const videoRef = React.useRef<HTMLVideoElement>(null);
   const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null);
   const [scannedPassId, setScannedPassId] = React.useState<string>("");
   const [manualPassId, setManualPassId] = React.useState<string>("");
   const [fetchedPass, setFetchedPass] = React.useState<GatePass | null>(null);
   const [isLoadingPass, setIsLoadingPass] = React.useState<boolean>(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
+  const [isScannerActive, setIsScannerActive] = React.useState(false);
 
-  // Request camera permission
+  const html5QrCodeScannerRef = React.useRef<Html5QrcodeScanner | null>(null);
+  const qrReaderId = "qr-reader-element";
+
   React.useEffect(() => {
-    const getCameraPermission = async () => {
-      if (typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-          setHasCameraPermission(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-          // Initialize QR Scanner here if using a library
-          // Example with html5-qrcode (conceptual):
-          // const scanner = new Html5QrcodeScanner(
-          //   "qr-reader", // ID of the div to render the scanner
-          //   { fps: 10, qrbox: {width: 250, height: 250} },
-          //   false // verbose
-          // );
-          // const onScanSuccess = (decodedText: string, decodedResult: any) => {
-          //   setScannedPassId(decodedText);
-          //   scanner.clear(); // Stop scanning
-          //   if (videoRef.current && videoRef.current.srcObject) {
-          //      (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-          //   }
-          // };
-          // scanner.render(onScanSuccess, (error: any) => { /* console.warn(error); */ });
-
-        } catch (error) {
-          console.error('Error accessing camera:', error);
-          setHasCameraPermission(false);
-          toast({
-            variant: 'destructive',
-            title: 'Camera Access Denied',
-            description: 'Please enable camera permissions in your browser settings to use the scanner.',
-          });
-        }
-      } else {
+    const startScanner = async () => {
+      if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setHasCameraPermission(false);
         toast({
           variant: 'destructive',
           title: 'Camera Not Supported',
           description: 'Your browser does not support camera access.',
         });
+        return;
+      }
+
+      if (hasCameraPermission === false) return; // Don't try if permission explicitly denied
+
+      try {
+        // Check permission implicitly by trying to get stream, then stop it.
+        // The library will manage its own stream.
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        tempStream.getTracks().forEach(track => track.stop());
+        setHasCameraPermission(true);
+        setIsScannerActive(true);
+
+        if (document.getElementById(qrReaderId) && !html5QrCodeScannerRef.current) {
+          const scanner = new Html5QrcodeScanner(
+            qrReaderId,
+            {
+              fps: 10,
+              qrbox: (viewfinderWidth, viewfinderHeight) => {
+                const minDimension = Math.min(viewfinderWidth, viewfinderHeight);
+                const qrboxSize = Math.floor(minDimension * 0.7);
+                return { width: qrboxSize, height: qrboxSize };
+              },
+              rememberLastUsedCamera: true,
+              supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA]
+            },
+            false // verbose
+          );
+
+          const onScanSuccess = (decodedText: string, decodedResult: any) => {
+            if (html5QrCodeScannerRef.current) {
+              html5QrCodeScannerRef.current.clear().then(() => {
+                setIsScannerActive(false);
+              }).catch(err => {
+                console.error("Failed to clear scanner", err);
+                setIsScannerActive(false);
+              });
+            }
+            setScannedPassId(decodedText);
+            setFetchedPass(null); // Clear previous pass details
+            setFetchError(null);
+          };
+
+          const onScanFailure = (error: any) => {
+            // console.warn(`QR scan failure: ${error}`);
+          };
+
+          scanner.render(onScanSuccess, onScanFailure);
+          html5QrCodeScannerRef.current = scanner;
+        }
+      } catch (error) {
+        console.error('Error accessing camera or starting scanner:', error);
+        setHasCameraPermission(false);
+        setIsScannerActive(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings or ensure no other app is using the camera.',
+        });
       }
     };
 
-    getCameraPermission();
+    // Only attempt to start if permission state is null (initial) or explicitly true
+    if (hasCameraPermission === null || (hasCameraPermission === true && !html5QrCodeScannerRef.current)) {
+      startScanner();
+    }
 
     return () => {
-      // Cleanup: stop video stream when component unmounts
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
+      if (html5QrCodeScannerRef.current) {
+        html5QrCodeScannerRef.current.clear().catch(err => {
+          console.error("Failed to clear scanner on unmount", err);
+        });
+        html5QrCodeScannerRef.current = null;
+        setIsScannerActive(false);
       }
-      // If using a scanner library, ensure it's cleaned up too.
-      // e.g. if (scanner) scanner.clear();
     };
-  }, [toast]);
-  
+  }, [toast, hasCameraPermission]);
+
   React.useEffect(() => {
-    if (scannedPassId && user) { 
+    if (scannedPassId && user) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]); 
+  }, [scannedPassId, user]);
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -129,7 +158,32 @@ export function GatePassScanner() {
 
   const handleSubmitManualId = (e: React.FormEvent) => {
     e.preventDefault();
+    if (html5QrCodeScannerRef.current && isScannerActive) {
+        html5QrCodeScannerRef.current.clear().then(() => setIsScannerActive(false)).catch(console.error);
+    }
+    setScannedPassId(""); // Clear any scanned ID if manual is used
     handleFetchPass(manualPassId);
+  };
+
+  const handleRescan = () => {
+    setFetchedPass(null);
+    setFetchError(null);
+    setScannedPassId("");
+    setManualPassId("");
+    if (hasCameraPermission === true && !isScannerActive && document.getElementById(qrReaderId)) {
+         if (html5QrCodeScannerRef.current) {
+            html5QrCodeScannerRef.current.clear().catch(console.error);
+            html5QrCodeScannerRef.current = null;
+         }
+        // Re-trigger scanner initialization logic by toggling a state or directly calling start
+        // For simplicity here, just re-set hasCameraPermission to null to trigger effect
+        // A more direct method would be to call a startScanner function directly.
+        // However, the useEffect is designed to handle this if hasCameraPermission changes.
+        // Let's try setting hasCameraPermission to null to re-trigger.
+        setHasCameraPermission(null); // This will re-trigger the useEffect
+    } else if (hasCameraPermission === null) {
+        // Effect will run anyway
+    }
   };
 
 
@@ -140,7 +194,7 @@ export function GatePassScanner() {
         <CardDescription>Point your camera at a Gate Pass QR code, or enter the ID manually.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        
+
         {hasCameraPermission === null && (
           <Alert>
             <Info className="h-4 w-4" />
@@ -149,38 +203,45 @@ export function GatePassScanner() {
           </Alert>
         )}
 
-        {hasCameraPermission === true && (
+        {hasCameraPermission === true && !fetchedPass && !fetchError && (
           <div className="space-y-4">
-            <div className="bg-muted rounded-md overflow-hidden aspect-video relative flex items-center justify-center">
-              <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-60 h-60 border-4 border-dashed border-primary/70 rounded-lg"></div>
-              </div>
-              {/* This is where you'd integrate a QR scanner library display element */}
-              {/* <div id="qr-reader" className="w-full"></div> */}
+            <div id={qrReaderId} className="w-full md:w-[400px] aspect-square mx-auto border rounded-md bg-muted overflow-hidden">
+              {/* QR Scanner will render here by html5-qrcode */}
             </div>
-             <Alert variant="default">
-              <QrCode className="h-4 w-4" />
-              <AlertTitle>Scanning Active</AlertTitle>
-              <AlertDescription>
-                Point your camera at the QR code. 
-                If scanning doesn't work, use the manual entry below.
-                <br />
-                <strong className="font-semibold">Note:</strong> Actual QR code scanning logic needs a specialized library (e.g., html5-qrcode) to be integrated here.
-              </AlertDescription>
-            </Alert>
+            {isScannerActive && (
+              <Alert variant="default">
+                <QrCode className="h-4 w-4" />
+                <AlertTitle>Scanning Active</AlertTitle>
+                <AlertDescription>
+                  Align the QR code within the viewfinder.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
 
         {hasCameraPermission === false && (
           <Alert variant="destructive">
             <CameraOff className="h-4 w-4" />
-            <AlertTitle>Camera Access Required</AlertTitle>
+            <AlertTitle>Camera Access Disabled</AlertTitle>
             <AlertDescription>
               Camera access is disabled or not available. Please enable it in your browser settings, or use manual entry.
             </AlertDescription>
           </Alert>
         )}
+        
+        {fetchedPass && (
+            <Button onClick={handleRescan} variant="outline" className="w-full">
+                Scan Another Pass
+            </Button>
+        )}
+
+        {!isScannerActive && hasCameraPermission === true && !fetchedPass && (
+             <Button onClick={handleRescan} variant="outline" className="w-full">
+                Re-activate Scanner
+            </Button>
+        )}
+
 
         <form onSubmit={handleSubmitManualId} className="space-y-3">
           <Label htmlFor="manualPassId">Manual Gate Pass ID Entry</Label>
@@ -191,10 +252,10 @@ export function GatePassScanner() {
               value={manualPassId}
               onChange={(e) => setManualPassId(e.target.value)}
               placeholder="Enter Gate Pass ID"
-              disabled={isLoadingPass || authLoading}
+              disabled={isLoadingPass || authLoading || isScannerActive}
               className="flex-grow"
             />
-            <Button type="submit" disabled={isLoadingPass || authLoading || !manualPassId.trim()}>
+            <Button type="submit" disabled={isLoadingPass || authLoading || !manualPassId.trim() || isScannerActive}>
               <Search className="mr-2 h-4 w-4" /> Find
             </Button>
           </div>
@@ -234,7 +295,7 @@ export function GatePassScanner() {
                     </div>
                     <div className="flex items-center">
                         <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>Dispatch Date & Time:</strong> 
+                        <strong>Dispatch Date & Time:</strong>
                         <span className="ml-1">
                             {fetchedPass.date ? format(new Date(fetchedPass.date), "PPPp") : "N/A"}
                         </span>
