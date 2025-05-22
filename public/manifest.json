@@ -8,32 +8,8 @@
   "theme_color": "#3F51B5",
   "icons": [
     {
-      "src": "/icons/stockflow-72x72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stockflow-96x96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stockflow-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stockflow-144x144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stockflow-152x152.png",
-      "sizes": "152x152",
+      "src": "/icons/stockflow-192x192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
@@ -41,13 +17,7 @@
       "src": "/icons/stockflow-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stockflow-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any"
+      "purpose": "maskable"
     },
     {
       "src": "/icons/stockflow-512x512.png",
@@ -56,13 +26,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icons/stockflow-maskable-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icons/stockflow-maskable-512x512.png",
+      "src": "/icons/stockflow-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
