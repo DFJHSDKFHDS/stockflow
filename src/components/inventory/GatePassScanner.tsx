@@ -21,7 +21,7 @@ import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as Use
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { cn } from "@/lib/utils";
-import { GatePassModal } from "@/components/gatepass/GatePassModal"; // Added
+import { GatePassModal } from "@/components/gatepass/GatePassModal";
 
 const ITEMS_DISPLAY_THRESHOLD = 3;
 
@@ -37,7 +37,7 @@ export function GatePassScanner() {
   const [isScannerActive, setIsScannerActive] = React.useState(false);
   const [showAllItems, setShowAllItems] = React.useState(false);
 
-  const [isPrintableSlipModalOpen, setIsPrintableSlipModalOpen] = React.useState(false); // Added
+  const [isPrintableSlipModalOpen, setIsPrintableSlipModalOpen] = React.useState(false);
 
   const html5QrCodeScannerRef = React.useRef<Html5QrcodeScanner | null>(null);
   const qrReaderId = "qr-reader-element";
@@ -56,6 +56,7 @@ export function GatePassScanner() {
       if (hasCameraPermission === false) return;
 
       try {
+        // More generic permission request
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
         tempStream.getTracks().forEach(track => track.stop()); 
         setHasCameraPermission(true);
@@ -153,7 +154,7 @@ export function GatePassScanner() {
     if (scannedPassId && user) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]); 
+  }, [scannedPassId, user]); // handleFetchPass is not memoized but its effect is what matters
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -210,7 +211,7 @@ export function GatePassScanner() {
     }
   };
 
-  const handleViewPrintableSlip = () => { // Added
+  const handleViewPrintableSlip = () => {
     if (fetchedPass && fetchedPass.generatedPassContent) {
       setIsPrintableSlipModalOpen(true);
     } else {
@@ -225,7 +226,7 @@ export function GatePassScanner() {
 
   return (
     <>
-      {fetchedPass && fetchedPass.generatedPassContent && ( // Added GatePassModal
+      {fetchedPass && fetchedPass.generatedPassContent && (
         <GatePassModal
           isOpen={isPrintableSlipModalOpen}
           onClose={() => setIsPrintableSlipModalOpen(false)}
@@ -278,7 +279,7 @@ export function GatePassScanner() {
             </Alert>
           )}
           
-          {fetchedPass && ( 
+          {(fetchedPass || (isScannerActive && hasCameraPermission)) && ( 
               <Button onClick={activateScanner} variant="outline" className="w-full mt-4">
                   Scan Another Pass
               </Button>
@@ -371,7 +372,7 @@ export function GatePassScanner() {
                       {(!fetchedPass || !fetchedPass.items || fetchedPass.items.length === 0) ? (
                           <p className="text-muted-foreground">No items listed for this pass.</p>
                       ) : (
-                      <div className="space-y-3" key={`items-list-${showAllItems}-${fetchedPass.id}`}>
+                      <div className="space-y-3"> {/* Removed key from here */}
                           {itemsToDisplay.map((item: GatePassItem) => (
                           <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:shadow-sm transition-shadow">
                               {item.imageUrl ? (
@@ -399,8 +400,8 @@ export function GatePassScanner() {
                           ))}
                       </div>
                       )}
-                    </ScrollArea>
-                    {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
+                       {/* Button INSIDE ScrollArea */}
+                      {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
                           <Button
                               variant="link"
                               className="w-full mt-2"
@@ -413,6 +414,7 @@ export function GatePassScanner() {
                               )}
                           </Button>
                       )}
+                    </ScrollArea>
                   </CardContent>
               </Card>
                {fetchedPass.generatedPassContent && (
@@ -429,4 +431,3 @@ export function GatePassScanner() {
     </>
   );
 }
-
