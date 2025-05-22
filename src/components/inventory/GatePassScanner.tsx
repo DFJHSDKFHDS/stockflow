@@ -17,10 +17,11 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info, ChevronDown, ChevronUp, Printer } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { cn } from "@/lib/utils";
+import { GatePassModal } from "@/components/gatepass/GatePassModal"; // Added
 
 const ITEMS_DISPLAY_THRESHOLD = 3;
 
@@ -35,6 +36,8 @@ export function GatePassScanner() {
   const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [isScannerActive, setIsScannerActive] = React.useState(false);
   const [showAllItems, setShowAllItems] = React.useState(false);
+
+  const [isPrintableSlipModalOpen, setIsPrintableSlipModalOpen] = React.useState(false); // Added
 
   const html5QrCodeScannerRef = React.useRef<Html5QrcodeScanner | null>(null);
   const qrReaderId = "qr-reader-element";
@@ -127,7 +130,7 @@ export function GatePassScanner() {
         toast({
           variant: 'destructive',
           title: 'Camera Access Problem',
-          description: 'Please enable camera permissions in your browser settings. Ensure your camera is not in use by another application and try activating scanner again.',
+          description: 'Could not access camera. Please enable permissions and ensure camera is not in use.',
         });
       }
     };
@@ -207,207 +210,223 @@ export function GatePassScanner() {
     }
   };
 
+  const handleViewPrintableSlip = () => { // Added
+    if (fetchedPass && fetchedPass.generatedPassContent) {
+      setIsPrintableSlipModalOpen(true);
+    } else {
+      toast({ title: "Not Available", description: "Printable slip content not found for this pass.", variant: "default" });
+    }
+  };
+
   const itemsToDisplay = fetchedPass?.items
     ? (showAllItems ? fetchedPass.items : fetchedPass.items.slice(0, ITEMS_DISPLAY_THRESHOLD))
     : [];
 
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><QrCode className="h-6 w-6 text-primary" /> Scan Gate Pass ID</CardTitle>
-        <CardDescription>Point your camera at a Gate Pass QR code, or enter the ID manually.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <>
+      {fetchedPass && fetchedPass.generatedPassContent && ( // Added GatePassModal
+        <GatePassModal
+          isOpen={isPrintableSlipModalOpen}
+          onClose={() => setIsPrintableSlipModalOpen(false)}
+          gatePassContent={fetchedPass.generatedPassContent}
+          qrCodeData={fetchedPass.qrCodeData}
+        />
+      )}
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><QrCode className="h-6 w-6 text-primary" /> Scan Gate Pass ID</CardTitle>
+          <CardDescription>Point your camera at a Gate Pass QR code, or enter the ID manually.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
 
-        {hasCameraPermission === null && !isScannerActive && (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>Camera Status</AlertTitle>
-            <AlertDescription>Click "Activate Scanner" to check camera permissions.</AlertDescription>
-          </Alert>
-        )}
-
-        <div className="space-y-4">
-            <div id={qrReaderId} className={cn("w-full md:w-[400px] min-h-[300px] mx-auto border rounded-md bg-muted overflow-hidden", !isScannerActive && "hidden")}>
-            </div>
-            {!isScannerActive && (
-            <Button onClick={activateScanner} variant="outline" className="w-full">
-                Activate Scanner
-            </Button>
-            )}
-            {isScannerActive && (
-            <Alert variant="default">
-                <QrCode className="h-4 w-4" />
-                <AlertTitle>Scanning Active</AlertTitle>
-                <AlertDescription>
-                Align the QR code within the viewfinder. Use the dropdown above the viewfinder to select a different camera if needed.
-                </AlertDescription>
+          {hasCameraPermission === null && !isScannerActive && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Camera Status</AlertTitle>
+              <AlertDescription>Click "Activate Scanner" to check camera permissions.</AlertDescription>
             </Alert>
-            )}
-        </div>
+          )}
 
-
-        {hasCameraPermission === false && !isScannerActive && ( 
-          <Alert variant="destructive">
-            <CameraOff className="h-4 w-4" />
-            <AlertTitle>Camera Access Problem</AlertTitle>
-            <AlertDescription>
-              Could not access camera. Please ensure camera permissions are enabled for this site in your browser settings and that no other app is using the camera. Try activating scanner again.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {fetchedPass && ( 
-            <Button onClick={activateScanner} variant="outline" className="w-full mt-4">
-                Scan Another Pass
-            </Button>
-        )}
-
-        <form onSubmit={handleSubmitManualId} className="space-y-3">
-          <Label htmlFor="manualPassId">Manual Gate Pass ID Entry</Label>
-          <div className="flex gap-2">
-            <Input
-              id="manualPassId"
-              type="text"
-              value={manualPassId}
-              onChange={(e) => setManualPassId(e.target.value)}
-              placeholder="Enter Gate Pass ID"
-              disabled={isLoadingPass || authLoading || isScannerActive}
-              className="flex-grow"
-            />
-            <Button type="submit" disabled={isLoadingPass || authLoading || !manualPassId.trim() || isScannerActive}>
-              <Search className="mr-2 h-4 w-4" /> Find
-            </Button>
+          <div className="space-y-4">
+              <div id={qrReaderId} className={cn("w-full md:w-[400px] min-h-[300px] mx-auto border rounded-md bg-muted overflow-hidden", !isScannerActive && "hidden")}>
+              </div>
+              {!isScannerActive && (
+              <Button onClick={activateScanner} variant="outline" className="w-full">
+                  Activate Scanner
+              </Button>
+              )}
+              {isScannerActive && (
+              <Alert variant="default">
+                  <QrCode className="h-4 w-4" />
+                  <AlertTitle>Scanning Active</AlertTitle>
+                  <AlertDescription>
+                  Align the QR code within the viewfinder. Use the dropdown above the viewfinder to select a different camera if needed.
+                  </AlertDescription>
+              </Alert>
+              )}
           </div>
-        </form>
 
-        {isLoadingPass && (
-           <div className="space-y-4 pt-4">
-            <Skeleton className="h-8 w-1/3" />
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        )}
 
-        {fetchError && !isLoadingPass && (
-          <Alert variant="destructive">
-            <PackageSearch className="h-4 w-4" />
-            <AlertTitle>Fetch Error</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
-          </Alert>
-        )}
+          {hasCameraPermission === false && !isScannerActive && ( 
+            <Alert variant="destructive">
+              <CameraOff className="h-4 w-4" />
+              <AlertTitle>Camera Access Problem</AlertTitle>
+              <AlertDescription>
+                Could not access camera. Please ensure camera permissions are enabled for this site in your browser settings and that no other app is using the camera. Try activating scanner again.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {fetchedPass && ( 
+              <Button onClick={activateScanner} variant="outline" className="w-full mt-4">
+                  Scan Another Pass
+              </Button>
+          )}
 
-        {fetchedPass && !isLoadingPass && (
-          <div className="border-t pt-6 mt-6 space-y-4">
-            <h3 className="text-xl font-semibold">Gate Pass Summary</h3>
-            <Card className="shadow-md">
-                <CardHeader className="pb-2 bg-muted/30">
-                    <CardTitle className="text-lg">Details</CardTitle>
-                     <CardDescription>
-                        ID: {fetchedPass.id.substring(1, 9)}... | Created: {fetchedPass.createdAt ? format(new Date(fetchedPass.createdAt), "PPpp") : "N/A"}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm space-y-3 pt-4">
-                    <div className="flex items-center">
-                        <UserCircle className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>Customer:</strong> <span className="ml-1">{fetchedPass.customerName}</span>
-                    </div>
-                    <div className="flex items-center">
-                        <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>Dispatch Date & Time:</strong>
-                        <span className="ml-1">
-                            {fetchedPass.date ? format(new Date(fetchedPass.date), "PPPp") : "N/A"}
-                        </span>
-                    </div>
-                    <div className="flex items-center">
-                      <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
-                      <strong>Authorized By:</strong> <span className="ml-1">{fetchedPass.userName}</span>
-                    </div>
-                     <div className="flex items-center">
-                        <ShoppingBag className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>Total Items:</strong> <span className="ml-1">{fetchedPass.totalQuantity}</span>
-                    </div>
-                    <div className="flex items-center">
-                        <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{fetchedPass.qrCodeData.substring(0,15)}...</span>
-                    </div>
-                    {fetchedPass.qrCodeData && (
-                        <div className="mt-3 pt-3 border-t flex flex-col items-center">
-                          <QRCodeSVG value={fetchedPass.qrCodeData} size={120} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} />
-                           <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+          <form onSubmit={handleSubmitManualId} className="space-y-3">
+            <Label htmlFor="manualPassId">Manual Gate Pass ID Entry</Label>
+            <div className="flex gap-2">
+              <Input
+                id="manualPassId"
+                type="text"
+                value={manualPassId}
+                onChange={(e) => setManualPassId(e.target.value)}
+                placeholder="Enter Gate Pass ID"
+                disabled={isLoadingPass || authLoading || isScannerActive}
+                className="flex-grow"
+              />
+              <Button type="submit" disabled={isLoadingPass || authLoading || !manualPassId.trim() || isScannerActive}>
+                <Search className="mr-2 h-4 w-4" /> Find
+              </Button>
+            </div>
+          </form>
 
-            <Card className="shadow-md">
-                <CardHeader className="pb-2 bg-muted/30">
-                    <CardTitle className="text-lg">Items Dispatched</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <ScrollArea className="max-h-[300px] pr-1">
-                    {(!fetchedPass || !fetchedPass.items || fetchedPass.items.length === 0) ? (
-                        <p className="text-muted-foreground">No items listed for this pass.</p>
-                    ) : (
-                    <div className="space-y-3" key={`items-list-${showAllItems}-${fetchedPass.id}`}> {/* Added dynamic key */}
-                        {itemsToDisplay.map((item: GatePassItem) => (
-                        <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:shadow-sm transition-shadow">
-                            {item.imageUrl ? (
-                            <Image
-                                src={item.imageUrl}
-                                alt={item.name}
-                                width={64}
-                                height={64}
-                                className="h-16 w-16 rounded-md object-cover border"
-                                data-ai-hint="product item"
-                            />
-                            ) : (
-                            <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center border" data-ai-hint="placeholder item">
-                                <ImageOff className="h-8 w-8 text-muted-foreground" />
-                            </div>
-                            )}
-                            <div className="flex-grow">
-                            <p className="font-semibold">{item.name}</p>
-                            <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
-                            </div>
-                            <div className="text-right">
-                            <p className="font-medium">Qty: {item.quantity}</p>
-                            </div>
-                        </div>
-                        ))}
-                    </div>
-                    )}
-                  </ScrollArea>
-                  {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
-                        <Button
-                            variant="link"
-                            className="w-full mt-2"
-                            onClick={() => setShowAllItems(!showAllItems)}
-                        >
-                            {showAllItems ? (
-                                <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
-                            ) : (
-                                <>Show More ({fetchedPass.items.length - ITEMS_DISPLAY_THRESHOLD} more) <ChevronDown className="ml-2 h-4 w-4" /></>
-                            )}
-                        </Button>
-                    )}
-                </CardContent>
-            </Card>
-             {fetchedPass.generatedPassContent && (
-                <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Printable Slip Available</AlertTitle>
-                    <AlertDescription>
-                        This gate pass has an AI-generated printable slip. You can view it from the "Outgoing Stock" page.
-                    </AlertDescription>
-                </Alert>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {isLoadingPass && (
+             <div className="space-y-4 pt-4">
+              <Skeleton className="h-8 w-1/3" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          )}
+
+          {fetchError && !isLoadingPass && (
+            <Alert variant="destructive">
+              <PackageSearch className="h-4 w-4" />
+              <AlertTitle>Fetch Error</AlertTitle>
+              <AlertDescription>{fetchError}</AlertDescription>
+            </Alert>
+          )}
+
+          {fetchedPass && !isLoadingPass && (
+            <div className="border-t pt-6 mt-6 space-y-4">
+              <h3 className="text-xl font-semibold">Gate Pass Summary</h3>
+              <Card className="shadow-md">
+                  <CardHeader className="pb-2 bg-muted/30">
+                      <CardTitle className="text-lg">Details</CardTitle>
+                       <CardDescription>
+                          ID: {fetchedPass.id.substring(1, 9)}... | Created: {fetchedPass.createdAt ? format(new Date(fetchedPass.createdAt), "PPpp") : "N/A"}
+                      </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-3 pt-4">
+                      <div className="flex items-center">
+                          <UserCircle className="mr-2 h-5 w-5 text-muted-foreground" />
+                          <strong>Customer:</strong> <span className="ml-1">{fetchedPass.customerName}</span>
+                      </div>
+                      <div className="flex items-center">
+                          <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
+                          <strong>Dispatch Date & Time:</strong>
+                          <span className="ml-1">
+                              {fetchedPass.date ? format(new Date(fetchedPass.date), "PPPp") : "N/A"}
+                          </span>
+                      </div>
+                      <div className="flex items-center">
+                        <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
+                        <strong>Authorized By:</strong> <span className="ml-1">{fetchedPass.userName}</span>
+                      </div>
+                       <div className="flex items-center">
+                          <ShoppingBag className="mr-2 h-5 w-5 text-muted-foreground" />
+                          <strong>Total Items:</strong> <span className="ml-1">{fetchedPass.totalQuantity}</span>
+                      </div>
+                      <div className="flex items-center">
+                          <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
+                          <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{fetchedPass.qrCodeData.substring(0,15)}...</span>
+                      </div>
+                      {fetchedPass.qrCodeData && (
+                          <div className="mt-3 pt-3 border-t flex flex-col items-center">
+                            <QRCodeSVG value={fetchedPass.qrCodeData} size={120} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} />
+                             <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
+                          </div>
+                      )}
+                  </CardContent>
+              </Card>
+
+              <Card className="shadow-md">
+                  <CardHeader className="pb-2 bg-muted/30">
+                      <CardTitle className="text-lg">Items Dispatched</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <ScrollArea className="max-h-[300px] pr-1">
+                      {(!fetchedPass || !fetchedPass.items || fetchedPass.items.length === 0) ? (
+                          <p className="text-muted-foreground">No items listed for this pass.</p>
+                      ) : (
+                      <div className="space-y-3" key={`items-list-${showAllItems}-${fetchedPass.id}`}>
+                          {itemsToDisplay.map((item: GatePassItem) => (
+                          <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:shadow-sm transition-shadow">
+                              {item.imageUrl ? (
+                              <Image
+                                  src={item.imageUrl}
+                                  alt={item.name}
+                                  width={64}
+                                  height={64}
+                                  className="h-16 w-16 rounded-md object-cover border"
+                                  data-ai-hint="product item"
+                              />
+                              ) : (
+                              <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center border" data-ai-hint="placeholder item">
+                                  <ImageOff className="h-8 w-8 text-muted-foreground" />
+                              </div>
+                              )}
+                              <div className="flex-grow">
+                              <p className="font-semibold">{item.name}</p>
+                              <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                              </div>
+                              <div className="text-right">
+                              <p className="font-medium">Qty: {item.quantity}</p>
+                              </div>
+                          </div>
+                          ))}
+                      </div>
+                      )}
+                    </ScrollArea>
+                    {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
+                          <Button
+                              variant="link"
+                              className="w-full mt-2"
+                              onClick={() => setShowAllItems(!showAllItems)}
+                          >
+                              {showAllItems ? (
+                                  <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
+                              ) : (
+                                  <>Show More ({fetchedPass.items.length - ITEMS_DISPLAY_THRESHOLD} more) <ChevronDown className="ml-2 h-4 w-4" /></>
+                              )}
+                          </Button>
+                      )}
+                  </CardContent>
+              </Card>
+               {fetchedPass.generatedPassContent && (
+                  <div className="mt-4">
+                    <Button variant="outline" onClick={handleViewPrintableSlip} className="w-full">
+                        <Printer className="mr-2 h-4 w-4" /> View Printable Slip
+                    </Button>
+                  </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
