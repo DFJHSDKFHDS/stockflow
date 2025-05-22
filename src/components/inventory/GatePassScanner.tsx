@@ -95,7 +95,7 @@ export function GatePassScanner() {
     if (scannedPassId) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId]);
+  }, [scannedPassId, user]); // Added user to dependency array
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -253,7 +253,7 @@ export function GatePassScanner() {
                     {fetchedPass.qrCodeData && (
                         <div className="mt-3 pt-3 border-t flex flex-col items-center" data-ai-hint="qr code">
                         <Image 
-                            src={`https://placehold.co/150x150.png?text=ID:\n${encodeURIComponent(fetchedPass.qrCodeData.substring(0,50))}`} 
+                            src={`https://placehold.co/120x120.png?text=ID:\n${encodeURIComponent(fetchedPass.qrCodeData.substring(0,50))}`} 
                             alt="QR Code Placeholder" 
                             width={120} 
                             height={120}
