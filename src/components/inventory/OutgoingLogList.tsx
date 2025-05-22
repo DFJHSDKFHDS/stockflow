@@ -171,7 +171,7 @@ export function OutgoingLogList() {
                         {selectedPass.qrCodeData && (
                             <div className="mt-3 pt-3 border-t flex flex-col items-center" data-ai-hint="qr code">
                             <Image 
-                                src={`https://placehold.co/120x120.png?text=ID:\n${encodeURIComponent(selectedPass.qrCodeData.substring(0,50))}`} 
+                                src={`https://placehold.co/120x120.png?text=ID:\n${encodeURIComponent(selectedPass.qrCodeData.substring(0,15))}`} 
                                 alt="QR Code Placeholder" 
                                 width={120} 
                                 height={120}
@@ -293,5 +293,3 @@ export function OutgoingLogList() {
     </>
   );
 }
-
-    

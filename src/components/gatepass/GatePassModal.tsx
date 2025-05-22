@@ -31,7 +31,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
     if (qrCodeData) {
       // For a real QR code, you'd use a library to generate an image/SVG
       // or use an API. For now, using a placeholder.
-      const placeholderQr = `https://placehold.co/150x150.png?text=QR+Data:\n${encodeURIComponent(qrCodeData.substring(0,50))}`;
+      const placeholderQr = `https://placehold.co/150x150.png?text=ID:\n${encodeURIComponent(qrCodeData.substring(0,15))}`;
       setQrCodeUrl(placeholderQr);
     }
   }, [qrCodeData]);
