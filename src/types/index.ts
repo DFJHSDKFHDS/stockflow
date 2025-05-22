@@ -48,7 +48,7 @@ export interface GatePassItem {
 
 export interface GatePass {
   id: string; 
-  gatePassNumber: number; // New auto-incrementing number
+  gatePassNumber: number; 
   userId: string; 
   userName: string; 
   items: GatePassItem[];
@@ -71,4 +71,6 @@ export interface UserProfileData {
   shopName: string;
   contactNo: string;
   address: string;
+  employees?: string[]; // Added for employee names
 }
+
