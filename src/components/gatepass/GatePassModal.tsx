@@ -21,13 +21,19 @@ interface GatePassModalProps {
   onClose: () => void;
   gatePassContent: string;
   qrCodeData: string; 
+  shopNameToBold?: string; // Added prop
 }
 
-export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: GatePassModalProps) {
+export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, shopNameToBold }: GatePassModalProps) {
   const { toast } = useToast();
   const qrCanvasId = "qr-canvas-for-print";
 
   const handleStandardPrint = () => {
+    toast({
+      title: "Print Dialog Open",
+      description: "Please check your printer settings (Paper Size: 80mm, Scale: 100%, Margins: None).",
+      duration: 5000,
+    });
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       let qrImageForPrint = '';
@@ -60,33 +66,36 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       printWindow.document.write(`
         <style>
           @page { 
-            size: 80mm auto; /* Best for 80mm thermal paper */
-            margin: 2mm; /* Minimal margins */
+            size: 80mm auto; 
+            margin: 2mm; 
           }
           body { 
-            font-family: 'Courier New', Courier, monospace; /* Monospace for alignment */
+            font-family: 'Courier New', Courier, monospace; 
             white-space: pre-wrap; 
             margin: 0; 
             padding: 0; 
-            font-size: 10pt; /* Standard POS font size */
-            line-height: 1.15; /* Adjust for readability */
-            width: 76mm; /* Approx 80mm - 2*2mm page margins */
+            font-size: 10pt; 
+            line-height: 1.15; 
+            width: 76mm; 
             box-sizing: border-box;
           }
           .content-wrapper {
             width: 100%;
             box-sizing: border-box;
           }
-          .pass-text {
+          .pass-line {
             margin:0; 
             padding:0; 
             font-family: 'Courier New', Courier, monospace;
             font-size: 10pt;
             line-height: 1.15;
-            white-space: pre-wrap;
-            word-wrap: break-word; /* Important for long unbroken lines if any */
+            white-space: pre; /* Use pre to respect all spaces for alignment */
+            word-wrap: break-word; 
             box-sizing: border-box;
             width: 100%;
+          }
+          .shop-name-line {
+            font-weight: bold;
           }
           .qr-code-container { 
             margin-top: 5mm; 
@@ -94,7 +103,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
             page-break-inside: avoid; 
           } 
           .qr-code-container img { 
-            max-width: 35mm; /* Adjust QR size as needed */
+            max-width: 35mm; 
             max-height: 35mm;
             display: block;
             margin-left: auto;
@@ -105,15 +114,28 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       `);
       printWindow.document.write('</head><body>');
       
-      const sanitizedGatePassContent = gatePassContent
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-      
       printWindow.document.write('<div class="content-wrapper">');
-      printWindow.document.write('<pre class="pass-text">' + sanitizedGatePassContent + '</pre>');
+      
+      const lines = gatePassContent.split('\n');
+      lines.forEach(line => {
+        const sanitizedLine = line
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+
+        // Check if shopNameToBold is provided and if the current line *is* the shop name
+        // Assuming shopNameToBold is the exact, uppercase string as generated.
+        const isShopNameLine = shopNameToBold && sanitizedLine.trim().toUpperCase() === shopNameToBold.trim().toUpperCase();
+        
+        if (isShopNameLine) {
+          printWindow.document.write('<div class="pass-line shop-name-line">' + sanitizedLine + '</div>');
+        } else {
+          printWindow.document.write('<div class="pass-line">' + sanitizedLine + '</div>');
+        }
+      });
+
       printWindow.document.write('</div>');
       
       if (qrImageForPrint) {
@@ -127,8 +149,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       setTimeout(() => {
         printWindow.focus(); 
         printWindow.print();
-        // printWindow.close(); // Optional: close after print dialog
-      }, 250); // Delay to allow content to render
+      }, 250); 
 
     } else {
         toast({ title: "Print Error", description: "Could not open print window. Check browser pop-up settings.", variant: "destructive"});
@@ -136,8 +157,6 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
   };
 
   const handleBluetoothPrint = async () => {
-    // --- Web Bluetooth API Implementation Guide (Test Mode) ---
-    // 1. Check for Web Bluetooth availability
     if (!navigator.bluetooth) {
       toast({ title: "Error", description: "Web Bluetooth API not available in this browser.", variant: "destructive" });
       return;
@@ -146,14 +165,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
     toast({ title: "Bluetooth Test", description: "Attempting to discover Bluetooth devices..." });
 
     try {
-      // 2. Request Bluetooth device
-      // Using acceptAllDevices: true for broader discovery during initial testing.
-      // IMPORTANT: For production, you should filter by specific service UUIDs of your target printers.
-      // Using acceptAllDevices can show many irrelevant devices and has security implications.
       const device = await navigator.bluetooth.requestDevice({
-        // filters: [{ services: ['0000180a-0000-1000-8000-00805f9b34fb'] }], // Example: Device Information Service
-        acceptAllDevices: true, // Shows all discoverable Bluetooth devices. Good for initial testing.
-        optionalServices: [] // You might need to list specific service UUIDs your printer uses here later.
+        acceptAllDevices: true, 
+        optionalServices: [] 
       });
       
       if (device) {
@@ -163,41 +177,12 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
           description: `Device "${device.name || device.id}" selected. Next step would be GATT connection to a printer.` 
         });
       } else {
-        // This case should not be reached if requestDevice resolves without error and returns a device.
-        // If it's reached, it implies an unexpected state.
         toast({ title: "Bluetooth Test", description: "No device was selected or selection process was cancelled without error.", variant: "default"});
       }
-
-      // --- Further steps for actual printing (kept commented for this test) ---
-      // 3. Connect to the GATT Server
-      //    toast({ title: "Simulating Connection", description: `Would attempt to connect to ${device.name || device.id}`});
-      //    const server = await device.gatt.connect();
-      //    toast({ title: "Connected (Simulated)", description: `Connected to ${device.name}` });
-
-      // 4. Get the Printer Service and Characteristic
-      //    const service = await server.getPrimaryService('YOUR_PRINTER_SERVICE_UUID');
-      //    const characteristic = await service.getCharacteristic('YOUR_PRINTER_CHARACTERISTIC_UUID');
-
-      // 5. Prepare Data (ESC/POS Commands)
-      //    const encoder = new TextEncoder();
-      //    // Example: simple text. For real printing, construct proper ESC/POS commands.
-      //    const dataToSend = encoder.encode(gatePassContent + "\n\n\n\n"); 
-      //    // You'd add commands for bold, QR, cut, etc.
-
-      // 6. Write data to the characteristic
-      //    await characteristic.writeValueWithoutResponse(dataToSend);
-      //    toast({ title: "Success (Simulated)", description: "Data would have been sent to printer." });
-
-      // 7. Disconnect
-      //    await server.disconnect();
-      //    toast({ title: "Disconnected (Simulated)", description: "Disconnected from printer." });
-      // --- End of further steps ---
-
     } catch (error: any) {
       console.error("Bluetooth Test Error:", error);
       let errorMessage = "Failed to select or interact with Bluetooth device.";
       if (error.name === 'NotFoundError') {
-        // This specific error means the user cancelled the picker or no devices were found.
         errorMessage = "No Bluetooth devices found or selected. Ensure Bluetooth is on and device is discoverable.";
       } else if (error.name === 'NotAllowedError') {
         errorMessage = "Bluetooth access denied. Please allow Bluetooth permissions for this site.";
@@ -236,7 +221,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
             </div>
           )}
         </ScrollArea>
-        <DialogFooter className="sm:justify-between gap-2 flex-wrap"> {/* Added flex-wrap for better responsiveness */}
+        <DialogFooter className="sm:justify-between gap-2 flex-wrap"> 
             <div className="flex gap-2">
                 <Button variant="outline" onClick={handleCopy} size="sm">
                     <Copy className="mr-2 h-4 w-4" /> Copy

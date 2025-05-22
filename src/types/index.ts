@@ -53,6 +53,7 @@ export interface GatePass {
   userName: string; 
   items: GatePassItem[];
   customerName: string; 
+  shopName?: string; // Added for print formatting
   date: string; // ISO string for dispatch date & time
   totalQuantity: number;
   createdAt: string; // ISO string for gate pass creation time
@@ -71,6 +72,6 @@ export interface UserProfileData {
   shopName: string;
   contactNo: string;
   address: string;
-  employees?: string[]; // Added for employee names
+  employees?: string[]; 
 }
 

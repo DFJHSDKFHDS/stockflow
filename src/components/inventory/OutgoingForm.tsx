@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Ticket, PlusCircle, User, ShoppingCart, Search, XCircle, MinusCircle, ImageOff } from "lucide-react";
+import { CalendarIcon, Ticket, PlusCircle, User, ShoppingCart, Search, XCircle, MinusCircle, ImageOff, Printer as PrinterIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QRCodeSVG } from "qrcode.react";
 
 
 const outgoingFormDetailsSchema = z.object({
@@ -124,6 +125,7 @@ export function OutgoingForm() {
   const [showGatePassModal, setShowGatePassModal] = React.useState(false);
   const [gatePassContentForModal, setGatePassContentForModal] = React.useState("");
   const [qrCodeDataForPass, setQrCodeDataForPass] = React.useState("");
+  const [createdPassDataForModal, setCreatedPassDataForModal] = React.useState<GatePass | null>(null);
 
   const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
   const [pendingFormValues, setPendingFormValues] = React.useState<OutgoingFormDetailsValues | null>(null);
@@ -319,7 +321,7 @@ export function OutgoingForm() {
   
     let content = `${centerText("GET PASS")}\n`;
     content += `${line}\n`;
-    if (profileData?.shopName) content += `${centerText(profileData.shopName)}\n`;
+    if (profileData?.shopName) content += `${centerText(profileData.shopName.toUpperCase())}\n`; // Uppercase for emphasis
     if (profileData?.address) { 
         const addressWords = profileData.address.split(' ');
         let currentLine = "";
@@ -445,6 +447,7 @@ export function OutgoingForm() {
         gatePassNumber: newGatePassNumber,
         userId: user.uid,
         userName: creator,
+        shopName: userProfileData?.shopName || "",
         items: gatePassDbItems,
         customerName: values.customerName,
         date: finalDispatchDateTime.toISOString(),
@@ -488,7 +491,8 @@ export function OutgoingForm() {
       
       setGatePassContentForModal(plainTextPassContent);
       setQrCodeDataForPass(gatePassId);
-      setShowGatePassModal(true); // Directly show the print modal
+      setCreatedPassDataForModal(gatePassData); // Store the created pass data
+      setShowGatePassModal(true); 
       
     } catch (error: any) {
       console.error("Error processing gate pass:", error);
@@ -514,6 +518,7 @@ export function OutgoingForm() {
     form.reset({ dispatchedAt: new Date(), customerName: "" });
     setSelectedItems([]);
     setSearchTerm(""); 
+    setCreatedPassDataForModal(null);
   };
 
   return (
@@ -530,6 +535,7 @@ export function OutgoingForm() {
         onClose={handlePrintModalClose}
         gatePassContent={gatePassContentForModal}
         qrCodeData={qrCodeDataForPass}
+        shopNameToBold={createdPassDataForModal?.shopName}
       />
 
       <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-var(--header-height,100px)-2rem)]">
