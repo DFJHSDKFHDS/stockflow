@@ -144,7 +144,7 @@ export function OutgoingLogList() {
                     <CardHeader className="pb-2">
                         <CardTitle className="text-lg">Details</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm space-y-2">
+                    <CardContent className="text-sm space-y-2 pt-4">
                         <div className="flex items-center">
                             <UserCircle className="mr-2 h-5 w-5 text-muted-foreground" />
                             <strong>Customer:</strong> <span className="ml-1">{selectedPass.customerName}</span>
@@ -171,7 +171,7 @@ export function OutgoingLogList() {
                         {selectedPass.qrCodeData && (
                             <div className="mt-3 pt-3 border-t flex flex-col items-center" data-ai-hint="qr code">
                             <Image 
-                                src={`https://placehold.co/150x150.png?text=ID:\n${encodeURIComponent(selectedPass.qrCodeData.substring(0,50))}`} 
+                                src={`https://placehold.co/120x120.png?text=ID:\n${encodeURIComponent(selectedPass.qrCodeData.substring(0,50))}`} 
                                 alt="QR Code Placeholder" 
                                 width={120} 
                                 height={120}
@@ -187,7 +187,7 @@ export function OutgoingLogList() {
                     <CardHeader className="pb-2">
                         <CardTitle className="text-lg">Items Dispatched</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-4">
                         {selectedPass.items.length === 0 ? (
                             <p className="text-muted-foreground">No items listed for this pass.</p>
                         ) : (
@@ -293,3 +293,5 @@ export function OutgoingLogList() {
     </>
   );
 }
+
+    

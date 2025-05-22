@@ -92,7 +92,7 @@ export function GatePassScanner() {
   }, [toast]);
   
   React.useEffect(() => {
-    if (scannedPassId) {
+    if (scannedPassId && user) { // Ensure user is available before fetching
       handleFetchPass(scannedPassId);
     }
   }, [scannedPassId, user]); // Added user to dependency array
@@ -259,7 +259,7 @@ export function GatePassScanner() {
                             height={120}
                             className="rounded-md"
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Pass ID: {fetchedPass.qrCodeData}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Scan for Pass ID</p>
                         </div>
                     )}
                 </CardContent>
@@ -320,3 +320,5 @@ export function GatePassScanner() {
     </Card>
   );
 }
+
+    
