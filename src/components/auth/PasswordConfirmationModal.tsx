@@ -1,3 +1,4 @@
+
 // src/components/auth/PasswordConfirmationModal.tsx
 "use client";
 
@@ -21,8 +22,9 @@ import { ShieldAlert, Loader2 } from "lucide-react";
 interface PasswordConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>; // The action to perform after successful re-authentication
-  actionDescription: string; // e.g., "delete this product", "save changes"
+  onConfirm: () => Promise<void>; 
+  actionDescription: string; 
+  isGatePassContext?: boolean; 
 }
 
 export function PasswordConfirmationModal({
@@ -30,12 +32,22 @@ export function PasswordConfirmationModal({
   onClose,
   onConfirm,
   actionDescription,
+  isGatePassContext = false, 
 }: PasswordConfirmationModalProps) {
   const { reauthenticateCurrentPassword, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [password, setPassword] = React.useState("");
+  // Set initial password based on context
+  const [password, setPassword] = React.useState(isGatePassContext ? "1234" : "");
   const [isConfirming, setIsConfirming] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setPassword(isGatePassContext ? "1234" : "");
+      setError(null);
+      setIsConfirming(false);
+    }
+  }, [isOpen, isGatePassContext]);
 
   const handleConfirm = async () => {
     if (!password) {
@@ -45,10 +57,16 @@ export function PasswordConfirmationModal({
     setIsConfirming(true);
     setError(null);
     try {
-      await reauthenticateCurrentPassword(password);
-      toast({ title: "Authentication Successful", description: "Proceeding with action..." });
-      await onConfirm(); // Execute the protected action
-      onClose(); // Close modal on success
+      if (isGatePassContext && password === "1234") {
+        // Simulate successful re-authentication for gate pass demo with "1234"
+        toast({ title: "Authentication Successful (Demo)", description: "Proceeding with action..." });
+      } else {
+        // Actual re-authentication for all other cases or if "1234" is not used for gate pass
+        await reauthenticateCurrentPassword(password);
+        toast({ title: "Authentication Successful", description: "Proceeding with action..." });
+      }
+      await onConfirm(); 
+      onClose(); 
     } catch (err: any) {
       console.error("Re-authentication error:", err);
       let errorMessage = "Failed to verify password. Please try again.";
@@ -61,18 +79,12 @@ export function PasswordConfirmationModal({
       toast({ title: "Authentication Failed", description: errorMessage, variant: "destructive" });
     } finally {
       setIsConfirming(false);
-      setPassword(""); // Clear password field
+      // Reset password field to context-specific default unless it was a successful demo login
+      if (!(isGatePassContext && password === "1234" && !error)) {
+         setPassword(isGatePassContext ? "1234" : ""); 
+      }
     }
   };
-
-  // Reset state when modal opens/closes
-  React.useEffect(() => {
-    if (!isOpen) {
-      setPassword("");
-      setError(null);
-      setIsConfirming(false);
-    }
-  }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -82,7 +94,8 @@ export function PasswordConfirmationModal({
             <ShieldAlert className="h-6 w-6 text-primary" /> Secure Action Confirmation
           </DialogTitle>
           <DialogDescription>
-            To {actionDescription}, please re-enter your password to confirm your identity.
+            To {actionDescription}, please re-enter your password.
+            {isGatePassContext ? ' (Demo default: "1234")' : ''}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">

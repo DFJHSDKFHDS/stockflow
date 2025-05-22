@@ -1,3 +1,4 @@
+
 // src/components/inventory/OutgoingForm.tsx
 "use client";
 
@@ -177,12 +178,12 @@ export function OutgoingForm() {
     );
   }, [searchTerm, allProducts]);
 
-  React.useEffect(() => { // Fetches employees
+  React.useEffect(() => { 
     if (user && !authLoading) {
       setIsLoadingEmployees(true);
       const profileDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/profileData`);
       const listener = onValue(profileDbRef, (snapshot) => {
-        const profile = snapshot.val();
+        const profile = snapshot.val() as UserProfileData | null;
         const fetchedEmployees = Array.isArray(profile?.employees) ? profile.employees.filter((name: string) => name.trim() !== "") : [];
         setEmployeeNames(fetchedEmployees);
         setIsLoadingEmployees(false);
@@ -199,28 +200,22 @@ export function OutgoingForm() {
     }
   }, [user, authLoading, toast]);
 
-  React.useEffect(() => { // Sets default for selectedCreatorName
+  React.useEffect(() => { 
     if (authLoading) return; 
 
     if (user) {
       const userDefaultName = user.displayName || user.email || "";
       if (employeeNames.length > 0) {
-        // If current selectedCreatorName is not valid among fetched employees,
-        // or if it's the user's default name (and employees are now available),
-        // or if nothing is selected yet, then default to the first employee.
         if (!selectedCreatorName || !employeeNames.includes(selectedCreatorName) || selectedCreatorName === userDefaultName) {
           setSelectedCreatorName(employeeNames[0]);
         }
-        // Else, current valid selection is kept.
       } else {
-        // No employees fetched, default to the current user's name.
         setSelectedCreatorName(userDefaultName);
       }
     } else {
-      // No user, clear the selected name.
       setSelectedCreatorName("");
     }
-  }, [user, employeeNames, authLoading, selectedCreatorName]); // Added selectedCreatorName to dependencies for re-evaluation if it changes externally.
+  }, [user, employeeNames, authLoading, selectedCreatorName]);
 
 
   const handleProductSelect = (product: Product) => {
@@ -314,7 +309,7 @@ export function OutgoingForm() {
     totalQuantity: number,
     profileData: UserProfileData | null
   ): string => {
-    const SLIP_WIDTH = 42; // Approximate width for thermal printers
+    const SLIP_WIDTH = 42; 
     const centerText = (text: string) => {
       if (!text) return "";
       const padLength = Math.floor((SLIP_WIDTH - text.length) / 2);
@@ -493,11 +488,8 @@ export function OutgoingForm() {
       
       setGatePassContentForModal(plainTextPassContent);
       setQrCodeDataForPass(gatePassId);
-      setShowGatePassModal(true);
+      setShowGatePassModal(true); // Directly show the print modal
       
-      form.reset({ dispatchedAt: new Date(), customerName: "" });
-      setSelectedItems([]);
-
     } catch (error: any) {
       console.error("Error processing gate pass:", error);
       toast({ title: "Processing Error", description: error.message || "Failed to process gate pass and update stock.", variant: "destructive" });
@@ -517,6 +509,13 @@ export function OutgoingForm() {
   
   const summaryTotalQuantity = selectedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
 
+  const handlePrintModalClose = () => {
+    setShowGatePassModal(false);
+    form.reset({ dispatchedAt: new Date(), customerName: "" });
+    setSelectedItems([]);
+    setSearchTerm(""); 
+  };
+
   return (
     <>
       <PasswordConfirmationModal
@@ -524,10 +523,11 @@ export function OutgoingForm() {
         onClose={() => setIsPasswordModalOpen(false)}
         onConfirm={processGatePassCreation}
         actionDescription="log these outgoing items and generate a gate pass"
+        isGatePassContext={true} 
       />
       <GatePassModal
         isOpen={showGatePassModal}
-        onClose={() => setShowGatePassModal(false)}
+        onClose={handlePrintModalClose}
         gatePassContent={gatePassContentForModal}
         qrCodeData={qrCodeDataForPass}
       />
