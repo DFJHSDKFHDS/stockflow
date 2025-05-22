@@ -15,6 +15,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription, // Added FormDescription here
 } from "@/components/ui/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, CheckCircle, Loader2, PackagePlus, FileText, Truck, Search, ImageOff, Edit3, ArrowLeft } from "lucide-react";
@@ -224,7 +225,7 @@ export function IncomingForm() {
       productName: pendingRestockData.productName,
       quantity: pendingRestockData.quantity,
       receivedAt: finalReceivedDateTime.toISOString(),
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(), // Log creation timestamp
       type: 'incoming',
       purchaseOrder: pendingRestockData.purchaseOrder || "",
       supplier: pendingRestockData.supplier || "",
@@ -260,11 +261,17 @@ export function IncomingForm() {
         description: error.message || "An unexpected error occurred.",
         variant: "destructive",
       });
+      // Attempt to roll back stock addition if log saving failed or other error occurred
       await runTransaction(productStockRef, (currentStock) => {
-         if (typeof currentStock === 'number') {
+         // Check if currentStock is a number and greater or equal than the quantity added
+         if (typeof currentStock === 'number' && currentStock >= pendingRestockData.quantity) {
           return currentStock - pendingRestockData.quantity;
         }
-        return currentStock; // Or 0 if it was null before attempt
+        // If currentStock is not what expected (e.g. null or less than quantity),
+        // avoid making it negative or causing further errors.
+        // This might mean the initial stock update didn't happen as expected or another transaction interfered.
+        // Logging or more sophisticated error handling might be needed here.
+        return currentStock; // Or 0 if it was null before attempt and quantity was added to 0
       }).catch(rbError => console.error("Stock rollback attempt failed:", rbError));
     } finally {
       setIsSubmitting(false);
@@ -317,6 +324,7 @@ export function IncomingForm() {
                 <p className="text-muted-foreground">
                   {allProducts.length === 0 ? "No products available." : "No products match your search."}
                 </p>
+                 {!user && !authLoading && <p className="mt-2 text-sm">Log in to manage products.</p>}
               </div>
             )}
             {!isLoadingProducts && filteredProducts.length > 0 && (
