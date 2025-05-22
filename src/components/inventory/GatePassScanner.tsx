@@ -50,13 +50,15 @@ export function GatePassScanner() {
       if (hasCameraPermission === false) return; 
 
       try {
-        // Check for environment camera support and get permission
-        const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        // General permission check for any video device
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
         tempStream.getTracks().forEach(track => track.stop()); // Stop temp stream, scanner will start its own
         setHasCameraPermission(true);
-        setIsScannerActive(true);
+        
+        // Defer scanner activation until user clicks a button or it's explicitly started
+        // setIsScannerActive(true); // This will be controlled by a button or other logic if needed
 
-        if (document.getElementById(qrReaderId) && !html5QrCodeScannerRef.current) {
+        if (document.getElementById(qrReaderId) && !html5QrCodeScannerRef.current && isScannerActive) {
           const scanner = new Html5QrcodeScanner(
             qrReaderId,
             {
@@ -68,8 +70,8 @@ export function GatePassScanner() {
               },
               rememberLastUsedCamera: true,
               supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-              videoConstraints: { // Prefer back camera
-                facingMode: "environment"
+              videoConstraints: { 
+                facingMode: { ideal: "environment" } // Prefer back camera, but allow fallback
               }
             },
             false // verbose: false
@@ -90,7 +92,7 @@ export function GatePassScanner() {
           };
 
           const onScanFailure = (error: any) => {
-            // console.warn(`QR scan failure: ${error}`); // Can be noisy, uncomment for debugging
+            // console.warn(`QR scan failure: ${error}`); // Can be noisy
           };
 
           scanner.render(onScanSuccess, onScanFailure);
@@ -103,12 +105,12 @@ export function GatePassScanner() {
         toast({
           variant: 'destructive',
           title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings, ensure the back camera is available, or check if another app is using the camera.',
+          description: 'Please enable camera permissions in your browser settings. Ensure your camera is not in use by another application and try again.',
         });
       }
     };
     
-    if (hasCameraPermission === null || (hasCameraPermission === true && !isScannerActive && !html5QrCodeScannerRef.current && document.getElementById(qrReaderId))) {
+    if (isScannerActive && hasCameraPermission !== false) {
         startScanner();
     }
 
@@ -116,19 +118,19 @@ export function GatePassScanner() {
     return () => {
       if (html5QrCodeScannerRef.current) {
         html5QrCodeScannerRef.current.clear().catch(err => {
-          // console.error("Failed to clear scanner on unmount", err); // Can be noisy
+          // console.error("Failed to clear scanner on unmount", err);
         });
         html5QrCodeScannerRef.current = null;
-        setIsScannerActive(false);
+        // setIsScannerActive(false); // Don't set to false here, as it might be remounting
       }
     };
-  }, [toast, hasCameraPermission, isScannerActive]);
+  }, [toast, hasCameraPermission, isScannerActive]); // Removed isScannerActive from here if startScanner depends on it
 
   React.useEffect(() => {
     if (scannedPassId && user) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]); // Added user to dependencies
+  }, [scannedPassId, user]);
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -168,17 +170,20 @@ export function GatePassScanner() {
     handleFetchPass(manualPassId);
   };
 
-  const handleRescan = () => {
+  const activateScanner = async () => {
     setFetchedPass(null);
     setFetchError(null);
     setScannedPassId("");
     setManualPassId("");
-    if (html5QrCodeScannerRef.current) {
-        html5QrCodeScannerRef.current.clear().catch(console.error);
-        html5QrCodeScannerRef.current = null; 
+     if (html5QrCodeScannerRef.current) {
+        await html5QrCodeScannerRef.current.clear().catch(console.error);
+        html5QrCodeScannerRef.current = null;
     }
-    setIsScannerActive(false); 
-    setHasCameraPermission(null); // Re-trigger camera permission check and scanner start
+    setIsScannerActive(true); // This will trigger the useEffect to start the scanner
+    if (hasCameraPermission === null || hasCameraPermission === false) {
+        // Re-attempt permission if it was null or false
+        setHasCameraPermission(null); // This will trigger permission check in useEffect
+    }
   };
 
 
@@ -190,49 +195,48 @@ export function GatePassScanner() {
       </CardHeader>
       <CardContent className="space-y-6">
 
-        {hasCameraPermission === null && (
+        {hasCameraPermission === null && !isScannerActive && (
           <Alert>
             <Info className="h-4 w-4" />
             <AlertTitle>Camera Status</AlertTitle>
-            <AlertDescription>Checking camera permissions...</AlertDescription>
+            <AlertDescription>Click "Activate Scanner" to check camera permissions.</AlertDescription>
           </Alert>
         )}
 
-        {hasCameraPermission === true && !fetchedPass && !fetchError && (
-          <div className="space-y-4">
-             {/* Ensure qrReaderId div is always in the DOM when scanner might activate */}
-            <div id={qrReaderId} className={cn("w-full md:w-[400px] aspect-square mx-auto border rounded-md bg-muted overflow-hidden", !isScannerActive && "hidden")}>
+        {/* Scanner UI Area */}
+        <div className="space-y-4">
+            <div id={qrReaderId} className={cn("w-full md:w-[400px] min-h-[300px] mx-auto border rounded-md bg-muted overflow-hidden", !isScannerActive && "hidden")}>
               {/* QR Scanner will render here by html5-qrcode */}
             </div>
-             {!isScannerActive && hasCameraPermission && (
-              <Button onClick={handleRescan} variant="outline" className="w-full">
+            {!isScannerActive && (
+            <Button onClick={activateScanner} variant="outline" className="w-full">
                 Activate Scanner
-              </Button>
+            </Button>
             )}
             {isScannerActive && (
-              <Alert variant="default">
+            <Alert variant="default">
                 <QrCode className="h-4 w-4" />
                 <AlertTitle>Scanning Active</AlertTitle>
                 <AlertDescription>
-                  Align the QR code within the viewfinder.
+                Align the QR code within the viewfinder. Use the dropdown above the viewfinder to select a different camera if needed.
                 </AlertDescription>
-              </Alert>
+            </Alert>
             )}
-          </div>
-        )}
+        </div>
 
-        {hasCameraPermission === false && (
+
+        {hasCameraPermission === false && !isScannerActive && ( // Only show if not trying to scan
           <Alert variant="destructive">
             <CameraOff className="h-4 w-4" />
-            <AlertTitle>Camera Access Disabled</AlertTitle>
+            <AlertTitle>Camera Access Problem</AlertTitle>
             <AlertDescription>
-              Camera access is disabled or not available. Please enable it in your browser settings, or use manual entry.
+              Could not access camera. Please ensure camera permissions are enabled for this site in your browser settings and that no other app is using the camera. Try activating scanner again.
             </AlertDescription>
           </Alert>
         )}
         
         {fetchedPass && (
-            <Button onClick={handleRescan} variant="outline" className="w-full">
+            <Button onClick={activateScanner} variant="outline" className="w-full">
                 Scan Another Pass
             </Button>
         )}
@@ -370,3 +374,4 @@ export function GatePassScanner() {
     </Card>
   );
 }
+
