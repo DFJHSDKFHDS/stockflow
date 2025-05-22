@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Image from "next/image";
@@ -23,7 +23,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Product, GatePass, GatePassItem as AppGatePassItem, UserProfileData } from "@/types";
-// AI flow import removed as per user request
 import { GatePassModal } from "@/components/gatepass/GatePassModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,11 +32,18 @@ import { ref as databaseRef, onValue, off, update, push, get, runTransaction } f
 import { PasswordConfirmationModal } from "@/components/auth/PasswordConfirmationModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 const outgoingFormDetailsSchema = z.object({
   dispatchedAt: z.date({ required_error: "Date of dispatch is required." }),
   customerName: z.string().min(3, "Customer Name is required."),
-  // reason: z.string().min(5, "Reason for dispatch is required.").optional(), // Removed as per user request
 });
 
 type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
@@ -121,12 +127,16 @@ export function OutgoingForm() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false);
   const [pendingFormValues, setPendingFormValues] = React.useState<OutgoingFormDetailsValues | null>(null);
 
+  const [employeeNames, setEmployeeNames] = React.useState<string[]>([]);
+  const [isLoadingEmployees, setIsLoadingEmployees] = React.useState(true);
+  const [selectedCreatorName, setSelectedCreatorName] = React.useState<string>("");
+
+
   const form = useForm<OutgoingFormDetailsValues>({
     resolver: zodResolver(outgoingFormDetailsSchema),
     defaultValues: {
       dispatchedAt: new Date(),
       customerName: "",
-      // reason: "", // Removed as per user request
     },
   });
 
@@ -166,6 +176,52 @@ export function OutgoingForm() {
       )
     );
   }, [searchTerm, allProducts]);
+
+  React.useEffect(() => { // Fetches employees
+    if (user && !authLoading) {
+      setIsLoadingEmployees(true);
+      const profileDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/profileData`);
+      const listener = onValue(profileDbRef, (snapshot) => {
+        const profile = snapshot.val();
+        const fetchedEmployees = Array.isArray(profile?.employees) ? profile.employees.filter((name: string) => name.trim() !== "") : [];
+        setEmployeeNames(fetchedEmployees);
+        setIsLoadingEmployees(false);
+      }, (error) => {
+        console.error("Error fetching profile data for employees:", error);
+        toast({ title: "Error", description: "Failed to fetch employee list.", variant: "destructive" });
+        setIsLoadingEmployees(false);
+        setEmployeeNames([]); 
+      });
+      return () => off(profileDbRef, 'value', listener);
+    } else if (!authLoading) { 
+      setIsLoadingEmployees(false);
+      setEmployeeNames([]);
+    }
+  }, [user, authLoading, toast]);
+
+  React.useEffect(() => { // Sets default for selectedCreatorName
+    if (authLoading) return; 
+
+    if (user) {
+      const userDefaultName = user.displayName || user.email || "";
+      if (employeeNames.length > 0) {
+        // If current selectedCreatorName is not valid among fetched employees,
+        // or if it's the user's default name (and employees are now available),
+        // or if nothing is selected yet, then default to the first employee.
+        if (!selectedCreatorName || !employeeNames.includes(selectedCreatorName) || selectedCreatorName === userDefaultName) {
+          setSelectedCreatorName(employeeNames[0]);
+        }
+        // Else, current valid selection is kept.
+      } else {
+        // No employees fetched, default to the current user's name.
+        setSelectedCreatorName(userDefaultName);
+      }
+    } else {
+      // No user, clear the selected name.
+      setSelectedCreatorName("");
+    }
+  }, [user, employeeNames, authLoading, selectedCreatorName]); // Added selectedCreatorName to dependencies for re-evaluation if it changes externally.
+
 
   const handleProductSelect = (product: Product) => {
     if (product.currentStock === 0) return;
@@ -269,11 +325,11 @@ export function OutgoingForm() {
     let content = `${centerText("GET PASS")}\n`;
     content += `${line}\n`;
     if (profileData?.shopName) content += `${centerText(profileData.shopName)}\n`;
-    if (profileData?.address) { // Simple address wrapping
+    if (profileData?.address) { 
         const addressWords = profileData.address.split(' ');
         let currentLine = "";
         addressWords.forEach(word => {
-            if ((currentLine + word).length + 1 > SLIP_WIDTH -2) { // -2 for potential centering spaces
+            if ((currentLine + word).length + 1 > SLIP_WIDTH -2) { 
                 content += `${centerText(currentLine.trim())}\n`;
                 currentLine = word + " ";
             } else {
@@ -286,13 +342,13 @@ export function OutgoingForm() {
     content += `${line}\n`;
   
     content += `Gate Pass No. : ${gatePassNumber}\n`;
-    content += `Date & Time   : ${format(dispatchDateTime, "PPpp")}\n`; //PPPp "MMM d, yyyy, h:mm:ss aa"
+    content += `Date & Time   : ${format(dispatchDateTime, "PPpp")}\n`; 
     content += `Customer Name : ${customerName}\n`;
     content += `Authorized By : ${userName}\n`;
-    content += `Gate Pass ID  : ${gatePassId.substring(0,12)}... (For QR)\n`; // Shorten for display
+    content += `Gate Pass ID  : ${gatePassId.substring(0,12)}... (For QR)\n`; 
     content += `${line}\n`;
   
-    content += `S.N. Product (SKU)                 Qty\n`; // Adjusted for alignment
+    content += `S.N. Product (SKU)                 Qty\n`; 
     content += `${line}\n`;
   
     items.forEach((item, index) => {
@@ -308,7 +364,6 @@ export function OutgoingForm() {
     content += `${line}\n\n`;
     content += `${centerText("Receiver's Signature")}\n`;
     content += `${centerText("______________________")}\n\n`;
-    // content += `${centerText("Valid only for today")}\n`; // Optional, as per image
   
     return content.trim();
   };
@@ -341,7 +396,7 @@ export function OutgoingForm() {
     }
     
     const lastGatePassNumberRef = databaseRef(rtdb, `Stockflow/${user.uid}/counters/lastGatePassNumber`);
-    let newGatePassNumber = 0; // Initialize to satisfy TypeScript, will be set by transaction
+    let newGatePassNumber = 0; 
 
     try {
       const transactionResult = await runTransaction(lastGatePassNumberRef, (currentData) => {
@@ -361,13 +416,12 @@ export function OutgoingForm() {
         name: item.name,
         sku: item.sku,
         quantity: item.quantity,
-        imageUrl: item.imageUrl, // Already ensuring this is string
+        imageUrl: item.imageUrl, 
       }));
 
       const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
-      const userName = user.displayName || user.email || "N/A";
+      const creator = selectedCreatorName || user.displayName || user.email || "N/A";
       
-      // Fetch profile data
       let userProfileData: UserProfileData | null = null;
       try {
         const profileDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/profileData`);
@@ -380,12 +434,11 @@ export function OutgoingForm() {
         toast({title: "Profile Data Notice", description: "Could not fetch shop details for the pass. Using defaults.", variant: "default"});
       }
       
-      // Generate plain text content (No AI call)
       const plainTextPassContent = generatePlainTextGatePass(
         newGatePassNumber,
         values.customerName,
         finalDispatchDateTime,
-        userName,
+        creator,
         gatePassId, 
         gatePassDbItems,
         totalQuantity,
@@ -396,14 +449,14 @@ export function OutgoingForm() {
         id: gatePassId,
         gatePassNumber: newGatePassNumber,
         userId: user.uid,
-        userName: userName,
+        userName: creator,
         items: gatePassDbItems,
         customerName: values.customerName,
         date: finalDispatchDateTime.toISOString(),
         totalQuantity: totalQuantity,
         createdAt: new Date().toISOString(),
         qrCodeData: gatePassId, 
-        generatedPassContent: plainTextPassContent, // Store the plain text content
+        generatedPassContent: plainTextPassContent, 
       };
 
       const stockUpdates: { [key: string]: any } = {};
@@ -419,7 +472,7 @@ export function OutgoingForm() {
         const currentStock = currentStockSnapshot.val();
 
         if (typeof currentStock !== 'number' || item.quantity > currentStock) {
-          await runTransaction(lastGatePassNumberRef, (currentData) => { // Attempt to roll back counter
+          await runTransaction(lastGatePassNumberRef, (currentData) => { 
             if (currentData !== null && currentData >= newGatePassNumber && newGatePassNumber > 0) { 
               return currentData - 1;
             }
@@ -448,7 +501,7 @@ export function OutgoingForm() {
     } catch (error: any) {
       console.error("Error processing gate pass:", error);
       toast({ title: "Processing Error", description: error.message || "Failed to process gate pass and update stock.", variant: "destructive" });
-      if (newGatePassNumber > 0) { // Ensure counter rollback only if number was generated
+      if (newGatePassNumber > 0) { 
           await runTransaction(lastGatePassNumberRef, (currentData) => {
             if (currentData !== null && currentData === newGatePassNumber) { 
               return currentData - 1;
@@ -598,10 +651,32 @@ export function OutgoingForm() {
                       <span>Total Quantity:</span>
                       <span>{summaryTotalQuantity}</span>
                     </div>
-                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        Created by: {user?.displayName || user?.email || "Current User"}
-                    </p>
+                        Created by:
+                        {isLoadingEmployees ? (
+                          <Skeleton className="h-4 w-24 ml-1" />
+                        ) : employeeNames.length > 0 ? (
+                          <Select
+                            value={selectedCreatorName}
+                            onValueChange={setSelectedCreatorName}
+                            disabled={isSubmitting}
+                          >
+                            <SelectTrigger className="h-7 w-auto min-w-[120px] max-w-[180px] text-xs ml-1 px-2 py-0 border-input focus:ring-primary/50">
+                              <SelectValue placeholder="Select creator..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {employeeNames.map((name) => (
+                                <SelectItem key={name} value={name} className="text-xs">
+                                  {name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="ml-1 font-medium text-xs">{selectedCreatorName || "N/A"}</span>
+                        )}
+                    </div>
                   </div>
                 )}
                 
