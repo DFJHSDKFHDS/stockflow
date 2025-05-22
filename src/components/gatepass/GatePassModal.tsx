@@ -32,35 +32,60 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
     if (printWindow) {
       let qrImageForPrint = '';
       const canvasElement = document.getElementById(qrCanvasId) as HTMLCanvasElement;
+      
       if (canvasElement) {
-        try {
-          qrImageForPrint = canvasElement.toDataURL('image/png');
-        } catch (e) {
-          console.error("Error converting canvas to DataURL:", e);
-          toast({ title: "QR Print Error", description: "Could not generate QR code image for printing.", variant: "destructive"});
+        if (canvasElement.width === 0 || canvasElement.height === 0) {
+            console.error("QR Canvas has no dimensions, not ready for printing.");
+            toast({ title: "QR Print Error", description: "QR Canvas not ready for printing. Please close and reopen the modal, then try again.", variant: "destructive"});
+            // Optionally close the print window if it was opened: printWindow.close();
+            // However, user might still want to print text content, so leaving it open for now.
+        } else {
+            try {
+              qrImageForPrint = canvasElement.toDataURL('image/png');
+              if (!qrImageForPrint || qrImageForPrint === "data:,") {
+                console.error("toDataURL returned empty or invalid data for QR code.");
+                qrImageForPrint = ""; // Ensure it's empty to trigger fallback
+                toast({ title: "QR Print Error", description: "Failed to generate QR image data for printing.", variant: "destructive"});
+              }
+            } catch (e: any) {
+              console.error("Error converting canvas to DataURL:", e);
+              toast({ title: "QR Print Error", description: `Could not generate QR code image: ${e.message || 'Unknown error'}.`, variant: "destructive"});
+              qrImageForPrint = ""; // Ensure fallback
+            }
         }
+      } else {
+          console.error("QR Canvas element not found by ID for printing:", qrCanvasId);
+          toast({ title: "QR Print Error", description: "QR Canvas element not found. Cannot print QR code image.", variant: "destructive"});
       }
 
       printWindow.document.write('<html><head><title>Gate Pass</title>');
-      printWindow.document.write('<style>body { font-family: monospace; white-space: pre-wrap; margin: 20px; } .qr-code-container { margin-top: 20px; text-align: center; } .qr-code-container img { max-width: 150px; } </style>');
+      printWindow.document.write('<style>body { font-family: monospace; white-space: pre-wrap; margin: 20px; font-size: 10pt; } .qr-code-container { margin-top: 20px; text-align: center; } .qr-code-container img { max-width: 120px; max-height: 120px; } @page { size: auto; margin: 5mm; } </style>');
       printWindow.document.write('</head><body>');
       printWindow.document.write(gatePassContent.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+      
       if (qrImageForPrint) {
         printWindow.document.write(`<div class="qr-code-container"><img src="${qrImageForPrint}" alt="QR Code for ${qrCodeData}" /></div>`);
       } else if (qrCodeData) {
-         printWindow.document.write(`<div class="qr-code-container"><p>[QR Code for Gate Pass ID: ${qrCodeData}]</p></div>`);
+         printWindow.document.write(`<div class="qr-code-container"><p style="font-size: 8pt;">[QR Code for Pass ID: ${qrCodeData.substring(0,15)}... Image generation failed or not available]</p></div>`);
       }
       printWindow.document.write('</body></html>');
       printWindow.document.close();
-      printWindow.print();
+      
+      // Give browser a moment to render images in the new window before printing
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+
     } else {
         toast({ title: "Print Error", description: "Could not open print window. Please check browser pop-up settings.", variant: "destructive"});
     }
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(gatePassContent)
-      .then(() => toast({ title: "Copied!", description: "Gate pass content copied to clipboard." }))
+    // Combine text content and a note about the QR data for copying
+    const textToCopy = `${gatePassContent}\n\nQR Code Data: ${qrCodeData}`;
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => toast({ title: "Copied!", description: "Gate pass content and QR data copied." }))
       .catch(() => toast({ title: "Copy Failed", description: "Could not copy content.", variant: "destructive" }));
   };
 
@@ -79,6 +104,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
           </pre>
           {qrCodeData && (
             <div className="mt-4 text-center">
+              {/* This canvas is used for on-screen display and for generating the print image */}
               <QRCodeCanvas id={qrCanvasId} value={qrCodeData} size={150} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} style={{display: 'block', margin: '0 auto'}} />
               <p className="text-xs text-muted-foreground mt-1">QR Code (Data: {qrCodeData.substring(0,30)}...)</p>
             </div>
