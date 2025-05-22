@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { IncomingLog, Product } from "@/types";
-import { FileText, CalendarDays, Package, Hash, Eye, PlusCircle, ShoppingCart, UserCircle, Tag } from "lucide-react";
+import { FileText, CalendarDays, Package, Hash, Eye, PlusCircle, ShoppingCart, UserCircle, Tag, ImageOff } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
@@ -115,13 +115,13 @@ export function IncomingLogList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {[...Array(6)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
+                  {[...Array(7)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
-                    {[...Array(6)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                    {[...Array(7)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                   </TableRow>
                 ))}
               </TableBody>
@@ -204,7 +204,7 @@ export function IncomingLogList() {
       <Card>
         <CardHeader className="flex flex-row items-start sm:items-center justify-between gap-2">
           <div>
-            <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-6 w-6 text-primary" /> Incoming Stock Logs</CardTitle>
+            <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-6 w-6 text-primary" /> Incoming Stock</CardTitle>
             <CardDescription>History of all received stock and inventory updates.</CardDescription>
           </div>
           <Link href="/incoming/restock" passHref>
@@ -221,6 +221,7 @@ export function IncomingLogList() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[60px]">Image</TableHead>
                     <TableHead className="w-[180px]">Date Received</TableHead>
                     <TableHead>Product Name</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
@@ -230,20 +231,39 @@ export function IncomingLogList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {incomingLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell>{log.receivedAt ? format(new Date(log.receivedAt), "MMM dd, yyyy") : "N/A"}</TableCell>
-                      <TableCell className="font-medium">{log.productName}</TableCell>
-                      <TableCell className="text-right">{log.quantity}</TableCell>
-                      <TableCell>{log.supplier || "-"}</TableCell>
-                      <TableCell>{log.purchaseOrder || "-"}</TableCell>
-                      <TableCell className="text-center">
-                        <Button variant="ghost" size="sm" onClick={() => handleViewLogDetails(log)}>
-                          <Eye className="mr-1 h-4 w-4" /> View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {incomingLogs.map((log) => {
+                    const productImageUrl = getProductImage(log.productId);
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell>
+                          {productImageUrl ? (
+                            <Image
+                              src={productImageUrl}
+                              alt={log.productName}
+                              width={40}
+                              height={40}
+                              className="rounded-md object-cover aspect-square"
+                              data-ai-hint="product item"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-muted rounded-md flex items-center justify-center" data-ai-hint="placeholder item">
+                              <ImageOff className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>{log.receivedAt ? format(new Date(log.receivedAt), "MMM dd, yyyy") : "N/A"}</TableCell>
+                        <TableCell className="font-medium">{log.productName}</TableCell>
+                        <TableCell className="text-right">{log.quantity}</TableCell>
+                        <TableCell>{log.supplier || "-"}</TableCell>
+                        <TableCell>{log.purchaseOrder || "-"}</TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="sm" onClick={() => handleViewLogDetails(log)}>
+                            <Eye className="mr-1 h-4 w-4" /> View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
