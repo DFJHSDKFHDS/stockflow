@@ -368,11 +368,11 @@ export function GatePassScanner() {
                       <CardTitle className="text-lg">Items Dispatched</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4">
-                    <ScrollArea className="max-h-[300px] pr-1">
+                    <ScrollArea className="pr-1"> {/* Removed max-h-[300px] */}
                       {(!fetchedPass || !fetchedPass.items || fetchedPass.items.length === 0) ? (
                           <p className="text-muted-foreground">No items listed for this pass.</p>
                       ) : (
-                      <div className="space-y-3"> {/* Removed key from here */}
+                      <div className="space-y-3">
                           {itemsToDisplay.map((item: GatePassItem) => (
                           <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:shadow-sm transition-shadow">
                               {item.imageUrl ? (
@@ -400,7 +400,6 @@ export function GatePassScanner() {
                           ))}
                       </div>
                       )}
-                       {/* Button INSIDE ScrollArea */}
                       {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
                           <Button
                               variant="link"
@@ -431,3 +430,4 @@ export function GatePassScanner() {
     </>
   );
 }
+
