@@ -332,7 +332,7 @@ export function GatePassScanner() {
                     </div>
                     <div className="flex items-center">
                         <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{fetchedPass.qrCodeData.substring(0,15)}</span>
+                        <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{fetchedPass.qrCodeData.substring(0,15)}...</span>
                     </div>
                     {fetchedPass.qrCodeData && (
                         <div className="mt-3 pt-3 border-t flex flex-col items-center">
@@ -411,4 +411,3 @@ export function GatePassScanner() {
     </Card>
   );
 }
-

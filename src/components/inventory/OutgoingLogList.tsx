@@ -129,7 +129,7 @@ export function OutgoingLogList() {
     );
   }
 
-  const itemsToDisplay = selectedPass?.items 
+  const itemsToDisplayInModal = selectedPass?.items 
     ? (showAllItemsInModal ? selectedPass.items : selectedPass.items.slice(0, ITEMS_DISPLAY_THRESHOLD))
     : [];
 
@@ -175,7 +175,7 @@ export function OutgoingLogList() {
                         </div>
                         <div className="flex items-center">
                             <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{selectedPass.qrCodeData.substring(0,15)}</span>
+                            <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{selectedPass.qrCodeData.substring(0,15)}...</span>
                         </div>
                         {selectedPass.qrCodeData && (
                             <div className="mt-3 pt-3 border-t flex flex-col items-center">
@@ -195,7 +195,7 @@ export function OutgoingLogList() {
                             <p className="text-muted-foreground">No items listed for this pass.</p>
                         ) : (
                         <div className="space-y-3">
-                            {itemsToDisplay.map((item: GatePassItem) => (
+                            {itemsToDisplayInModal.map((item: GatePassItem) => (
                             <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50 hover:shadow-sm transition-shadow">
                                 {item.imageUrl ? (
                                 <Image
@@ -309,4 +309,3 @@ export function OutgoingLogList() {
     </>
   );
 }
-
