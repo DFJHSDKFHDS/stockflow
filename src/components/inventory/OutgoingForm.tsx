@@ -23,7 +23,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Product, GatePass, GatePassItem as AppGatePassItem, UserProfileData } from "@/types";
-// import { generateGatePass, type GenerateGatePassInput } from "@/ai/flows/generate-gate-pass"; // Removed AI flow import
+// AI flow import removed as per user request
 import { GatePassModal } from "@/components/gatepass/GatePassModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const outgoingFormDetailsSchema = z.object({
   dispatchedAt: z.date({ required_error: "Date of dispatch is required." }),
   customerName: z.string().min(3, "Customer Name is required."),
+  // reason: z.string().min(5, "Reason for dispatch is required.").optional(), // Removed as per user request
 });
 
 type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
@@ -125,6 +126,7 @@ export function OutgoingForm() {
     defaultValues: {
       dispatchedAt: new Date(),
       customerName: "",
+      // reason: "", // Removed as per user request
     },
   });
 
@@ -245,7 +247,7 @@ export function OutgoingForm() {
     setPendingFormValues(values);
     setIsPasswordModalOpen(true);
   };
-
+  
   const generatePlainTextGatePass = (
     gatePassNumber: number,
     customerName: string,
@@ -256,38 +258,58 @@ export function OutgoingForm() {
     totalQuantity: number,
     profileData: UserProfileData | null
   ): string => {
-    const pad = (str: string | number, len: number, char = ' ') => String(str).padEnd(len, char);
-    const padStart = (str: string | number, len: number, char = ' ') => String(str).padStart(len, char);
+    const SLIP_WIDTH = 42; // Approximate width for thermal printers
+    const centerText = (text: string) => {
+      if (!text) return "";
+      const padLength = Math.floor((SLIP_WIDTH - text.length) / 2);
+      return ' '.repeat(Math.max(0, padLength)) + text;
+    };
+    const line = '-'.repeat(SLIP_WIDTH);
   
-    let content = `
-            GET PASS
---------------------------------------
-       ${profileData?.shopName || 'Your Shop Name'}
- ${profileData?.address || 'Shop Address'}
-     Contact: ${profileData?.contactNo || 'Shop Contact'}
---------------------------------------
-Gate Pass No. : ${gatePassNumber}
-Date & Time   : ${format(dispatchDateTime, "PPpp")}
-Customer Name : ${customerName}
-Authorized By : ${userName}
-Gate Pass ID  : ${gatePassId} (For QR)
---------------------------------------
-S.N. ${pad('Product (SKU)', 30)} ${padStart('Qty', 3)}
---------------------------------------
-`;
+    let content = `${centerText("GET PASS")}\n`;
+    content += `${line}\n`;
+    if (profileData?.shopName) content += `${centerText(profileData.shopName)}\n`;
+    if (profileData?.address) { // Simple address wrapping
+        const addressWords = profileData.address.split(' ');
+        let currentLine = "";
+        addressWords.forEach(word => {
+            if ((currentLine + word).length + 1 > SLIP_WIDTH -2) { // -2 for potential centering spaces
+                content += `${centerText(currentLine.trim())}\n`;
+                currentLine = word + " ";
+            } else {
+                currentLine += word + " ";
+            }
+        });
+        if(currentLine.trim()) content += `${centerText(currentLine.trim())}\n`;
+    }
+    if (profileData?.contactNo) content += `${centerText("Contact: " + profileData.contactNo)}\n`;
+    content += `${line}\n`;
+  
+    content += `Gate Pass No. : ${gatePassNumber}\n`;
+    content += `Date & Time   : ${format(dispatchDateTime, "PPpp")}\n`; //PPPp "MMM d, yyyy, h:mm:ss aa"
+    content += `Customer Name : ${customerName}\n`;
+    content += `Authorized By : ${userName}\n`;
+    content += `Gate Pass ID  : ${gatePassId.substring(0,12)}... (For QR)\n`; // Shorten for display
+    content += `${line}\n`;
+  
+    content += `S.N. Product (SKU)                 Qty\n`; // Adjusted for alignment
+    content += `${line}\n`;
   
     items.forEach((item, index) => {
-      const productString = `${item.name} (${item.sku || 'N/A'})`;
-      content += `${padStart(index + 1, 3)}. ${pad(productString, 30)} ${padStart(item.quantity, 3)}\n`;
+      const sn = (index + 1).toString().padEnd(3);
+      const productNameWithSku = `${item.name.substring(0, 18)} (${item.sku.substring(0,6)}..)`;
+      const productDisplay = productNameWithSku.padEnd(30);
+      const qty = item.quantity.toString().padStart(3);
+      content += `${sn} ${productDisplay} ${qty}\n`;
     });
   
-    content += `--------------------------------------
-Total Quantity:${padStart(totalQuantity, 27)}
---------------------------------------
-
-     Receiver's Signature
---------------------------------------
-`;
+    content += `${line}\n`;
+    content += `Total Quantity:${totalQuantity.toString().padStart(SLIP_WIDTH - "Total Quantity:".length)}\n`;
+    content += `${line}\n\n`;
+    content += `${centerText("Receiver's Signature")}\n`;
+    content += `${centerText("______________________")}\n\n`;
+    // content += `${centerText("Valid only for today")}\n`; // Optional, as per image
+  
     return content.trim();
   };
 
@@ -319,7 +341,7 @@ Total Quantity:${padStart(totalQuantity, 27)}
     }
     
     const lastGatePassNumberRef = databaseRef(rtdb, `Stockflow/${user.uid}/counters/lastGatePassNumber`);
-    let newGatePassNumber: number;
+    let newGatePassNumber = 0; // Initialize to satisfy TypeScript, will be set by transaction
 
     try {
       const transactionResult = await runTransaction(lastGatePassNumberRef, (currentData) => {
@@ -339,12 +361,12 @@ Total Quantity:${padStart(totalQuantity, 27)}
         name: item.name,
         sku: item.sku,
         quantity: item.quantity,
-        imageUrl: item.imageUrl,
+        imageUrl: item.imageUrl, // Already ensuring this is string
       }));
 
       const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
       const userName = user.displayName || user.email || "N/A";
-
+      
       // Fetch profile data
       let userProfileData: UserProfileData | null = null;
       try {
@@ -358,12 +380,13 @@ Total Quantity:${padStart(totalQuantity, 27)}
         toast({title: "Profile Data Notice", description: "Could not fetch shop details for the pass. Using defaults.", variant: "default"});
       }
       
-      const generatedAiContent = generatePlainTextGatePass(
+      // Generate plain text content (No AI call)
+      const plainTextPassContent = generatePlainTextGatePass(
         newGatePassNumber,
         values.customerName,
         finalDispatchDateTime,
         userName,
-        gatePassId,
+        gatePassId, 
         gatePassDbItems,
         totalQuantity,
         userProfileData
@@ -379,8 +402,8 @@ Total Quantity:${padStart(totalQuantity, 27)}
         date: finalDispatchDateTime.toISOString(),
         totalQuantity: totalQuantity,
         createdAt: new Date().toISOString(),
-        qrCodeData: gatePassId,
-        generatedPassContent: generatedAiContent,
+        qrCodeData: gatePassId, 
+        generatedPassContent: plainTextPassContent, // Store the plain text content
       };
 
       const stockUpdates: { [key: string]: any } = {};
@@ -396,12 +419,12 @@ Total Quantity:${padStart(totalQuantity, 27)}
         const currentStock = currentStockSnapshot.val();
 
         if (typeof currentStock !== 'number' || item.quantity > currentStock) {
-          await runTransaction(lastGatePassNumberRef, (currentData) => {
-            if (currentData !== null && currentData >= newGatePassNumber) { 
+          await runTransaction(lastGatePassNumberRef, (currentData) => { // Attempt to roll back counter
+            if (currentData !== null && currentData >= newGatePassNumber && newGatePassNumber > 0) { 
               return currentData - 1;
             }
             return currentData;
-          });
+          }).catch(rollbackError => console.error("Counter rollback failed:", rollbackError));
           toast({ title: "Stock Update Error", description: `Not enough stock for ${item.name}. Available: ${currentStock ?? 'N/A'}. Please refresh.`, variant: "destructive" });
           setIsSubmitting(false);
           return;
@@ -415,18 +438,17 @@ Total Quantity:${padStart(totalQuantity, 27)}
 
       toast({ title: "Gate Pass Logged & Stock Updated", description: "Successfully recorded outgoing items." });
       
-      setGatePassContentForModal(generatedAiContent);
+      setGatePassContentForModal(plainTextPassContent);
       setQrCodeDataForPass(gatePassId);
       setShowGatePassModal(true);
       
       form.reset({ dispatchedAt: new Date(), customerName: "" });
       setSelectedItems([]);
 
-    } catch (error: any)
-{
+    } catch (error: any) {
       console.error("Error processing gate pass:", error);
       toast({ title: "Processing Error", description: error.message || "Failed to process gate pass and update stock.", variant: "destructive" });
-      if (newGatePassNumber) { 
+      if (newGatePassNumber > 0) { // Ensure counter rollback only if number was generated
           await runTransaction(lastGatePassNumberRef, (currentData) => {
             if (currentData !== null && currentData === newGatePassNumber) { 
               return currentData - 1;
