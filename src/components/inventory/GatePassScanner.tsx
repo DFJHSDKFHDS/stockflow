@@ -53,21 +53,19 @@ export function GatePassScanner() {
       if (hasCameraPermission === false) return;
 
       try {
-        // General video permission request
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        tempStream.getTracks().forEach(track => track.stop()); // Release the stream immediately
+        tempStream.getTracks().forEach(track => track.stop()); 
         setHasCameraPermission(true);
         
         if (document.getElementById(qrReaderId) && !html5QrCodeScannerRef.current && isScannerActive) {
           const qrReaderContainer = document.getElementById(qrReaderId);
           if (qrReaderContainer) {
-            qrReaderContainer.innerHTML = ''; // Clear previous scanner UI
+            qrReaderContainer.innerHTML = ''; 
           } else {
             console.error("QR Reader container not found for clearing.");
             return; 
           }
 
-          // Defer scanner initialization
           setTimeout(() => {
             if (document.getElementById(qrReaderId) && !html5QrCodeScannerRef.current && isScannerActive) {
               try {
@@ -83,30 +81,29 @@ export function GatePassScanner() {
                     rememberLastUsedCamera: true,
                     supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
                     videoConstraints: { 
-                      facingMode: { ideal: "environment" } // Prefer back camera
+                      facingMode: { ideal: "environment" } 
                     }
                   },
-                  false // verbose=false
+                  false 
                 );
 
                 const onScanSuccessCallback = (decodedText: string, decodedResult: any) => {
                   if (html5QrCodeScannerRef.current) {
                     html5QrCodeScannerRef.current.clear().then(() => {
-                      setIsScannerActive(false); // Deactivate scanner UI on success
+                      setIsScannerActive(false); 
                     }).catch(err => {
                       console.error("Failed to clear scanner", err);
-                      setIsScannerActive(false); // Still deactivate
+                      setIsScannerActive(false); 
                     });
                   }
                   setScannedPassId(decodedText);
-                  setFetchedPass(null); // Clear previous pass
+                  setFetchedPass(null); 
                   setFetchError(null);
-                  setShowAllItems(false); // Reset for new pass display
+                  setShowAllItems(false); 
                 };
 
                 const onScanFailureCallback = (error: any) => {
                   // console.warn(`QR scan failure: ${error}`); 
-                  // Errors are frequent, no need to toast every time. Library shows messages.
                 };
                 
                 scanner.render(onScanSuccessCallback, onScanFailureCallback);
@@ -118,10 +115,10 @@ export function GatePassScanner() {
                       title: 'Scanner Init Error',
                       description: 'Failed to initialize the QR code scanner. Please ensure camera is not in use and try again.',
                   });
-                  setIsScannerActive(false); // Ensure scanner is marked inactive on init failure
+                  setIsScannerActive(false); 
               }
             }
-          }, 0); // End of setTimeout
+          }, 0); 
         }
       } catch (error) {
         console.error('Error accessing camera or starting scanner:', error);
@@ -129,7 +126,7 @@ export function GatePassScanner() {
         setIsScannerActive(false); 
         toast({
           variant: 'destructive',
-          title: 'Camera Access Denied',
+          title: 'Camera Access Problem',
           description: 'Please enable camera permissions in your browser settings. Ensure your camera is not in use by another application and try activating scanner again.',
         });
       }
@@ -147,13 +144,13 @@ export function GatePassScanner() {
         html5QrCodeScannerRef.current = null;
       }
     };
-  }, [toast, hasCameraPermission, isScannerActive]); // isScannerActive in dependency array
+  }, [toast, hasCameraPermission, isScannerActive]); 
 
   React.useEffect(() => {
     if (scannedPassId && user) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]); // user added as dependency
+  }, [scannedPassId, user]); 
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -163,10 +160,10 @@ export function GatePassScanner() {
       }
       return;
     }
+    setFetchedPass(null); 
+    setShowAllItems(false);
     setIsLoadingPass(true);
     setFetchError(null);
-    setFetchedPass(null);
-    setShowAllItems(false); // Reset for new pass display
     try {
       const passDbRef = databaseRef(rtdb, `Stockflow/${user.uid}/gatePasses/${passIdToFetch.trim()}`);
       const snapshot = await get(passDbRef);
@@ -190,7 +187,7 @@ export function GatePassScanner() {
     if (html5QrCodeScannerRef.current && isScannerActive) {
         html5QrCodeScannerRef.current.clear().then(() => setIsScannerActive(false)).catch(console.error);
     }
-    setScannedPassId(""); // Clear scanned ID if using manual
+    setScannedPassId(""); 
     handleFetchPass(manualPassId);
   };
 
@@ -199,19 +196,17 @@ export function GatePassScanner() {
     setFetchError(null);
     setScannedPassId("");
     setManualPassId("");
-    setShowAllItems(false); // Reset state
+    setShowAllItems(false); 
      if (html5QrCodeScannerRef.current) {
-        // Attempt to clear existing scanner before reactivating
         await html5QrCodeScannerRef.current.clear().catch(console.error);
         html5QrCodeScannerRef.current = null;
     }
-    setIsScannerActive(true); // This will trigger the useEffect to start the scanner
-    if (hasCameraPermission === null || hasCameraPermission === false) { // If permission unknown or denied
-        setHasCameraPermission(null); // Reset to trigger permission check flow in useEffect
+    setIsScannerActive(true); 
+    if (hasCameraPermission === null || hasCameraPermission === false) { 
+        setHasCameraPermission(null); 
     }
   };
 
-  // Calculate itemsToDisplay based on fetchedPass and showAllItems
   const itemsToDisplay = fetchedPass?.items
     ? (showAllItems ? fetchedPass.items : fetchedPass.items.slice(0, ITEMS_DISPLAY_THRESHOLD))
     : [];
@@ -234,9 +229,7 @@ export function GatePassScanner() {
         )}
 
         <div className="space-y-4">
-            {/* Ensure qrReaderId div is always in the DOM when scanner might activate */}
             <div id={qrReaderId} className={cn("w-full md:w-[400px] min-h-[300px] mx-auto border rounded-md bg-muted overflow-hidden", !isScannerActive && "hidden")}>
-              {/* QR Scanner will render here by html5-qrcode */}
             </div>
             {!isScannerActive && (
             <Button onClick={activateScanner} variant="outline" className="w-full">
@@ -265,7 +258,7 @@ export function GatePassScanner() {
           </Alert>
         )}
         
-        {fetchedPass && ( // Show "Scan Another Pass" only if a pass is currently displayed
+        {fetchedPass && ( 
             <Button onClick={activateScanner} variant="outline" className="w-full mt-4">
                 Scan Another Pass
             </Button>
@@ -355,11 +348,10 @@ export function GatePassScanner() {
                 </CardHeader>
                 <CardContent className="pt-4">
                   <ScrollArea className="max-h-[300px] pr-1">
-                    {/* Robust check for items */}
-                    {(!fetchedPass.items || fetchedPass.items.length === 0) ? (
+                    {(!fetchedPass || !fetchedPass.items || fetchedPass.items.length === 0) ? (
                         <p className="text-muted-foreground">No items listed for this pass.</p>
                     ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3" key={`items-list-${showAllItems}-${fetchedPass.id}`}> {/* Added dynamic key */}
                         {itemsToDisplay.map((item: GatePassItem) => (
                         <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:shadow-sm transition-shadow">
                             {item.imageUrl ? (
@@ -388,8 +380,6 @@ export function GatePassScanner() {
                     </div>
                     )}
                   </ScrollArea>
-                  {/* "Show More" / "Show Less" button rendered directly inside CardContent, after ScrollArea */}
-                  {/* Robust check for button rendering */}
                   {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
                         <Button
                             variant="link"
