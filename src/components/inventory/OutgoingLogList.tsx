@@ -1,3 +1,4 @@
+
 // src/components/inventory/OutgoingLogList.tsx
 "use client";
 
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { GatePass, GatePassItem } from "@/types";
-import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, Printer, ImageOff } from "lucide-react"; 
+import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, Printer, ImageOff, ChevronDown, ChevronUp } from "lucide-react"; 
 import { User as UserIcon } from "lucide-react"; 
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
@@ -34,7 +35,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Image from "next/image";
 import { GatePassModal } from "@/components/gatepass/GatePassModal"; 
-import { QRCodeSVG } from 'qrcode.react'; // Import QRCodeSVG
+import { QRCodeSVG } from 'qrcode.react';
+
+const ITEMS_DISPLAY_THRESHOLD = 3;
 
 export function OutgoingLogList() {
   const [gatePasses, setGatePasses] = React.useState<GatePass[]>([]);
@@ -45,6 +48,7 @@ export function OutgoingLogList() {
   const [selectedPass, setSelectedPass] = React.useState<GatePass | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
   const [isPrintableSlipModalOpen, setIsPrintableSlipModalOpen] = React.useState(false);
+  const [showAllItemsInModal, setShowAllItemsInModal] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -84,6 +88,7 @@ export function OutgoingLogList() {
 
   const handleViewPassDetails = (pass: GatePass) => {
     setSelectedPass(pass);
+    setShowAllItemsInModal(false); // Reset on opening new dialog
     setIsDetailsModalOpen(true);
   };
 
@@ -123,6 +128,10 @@ export function OutgoingLogList() {
       </Card>
     );
   }
+
+  const itemsToDisplay = selectedPass?.items 
+    ? (showAllItemsInModal ? selectedPass.items : selectedPass.items.slice(0, ITEMS_DISPLAY_THRESHOLD))
+    : [];
 
   return (
     <>
@@ -166,7 +175,7 @@ export function OutgoingLogList() {
                         </div>
                         <div className="flex items-center">
                             <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{selectedPass.qrCodeData}</span>
+                            <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{selectedPass.qrCodeData.substring(0,15)}</span>
                         </div>
                         {selectedPass.qrCodeData && (
                             <div className="mt-3 pt-3 border-t flex flex-col items-center">
@@ -186,7 +195,7 @@ export function OutgoingLogList() {
                             <p className="text-muted-foreground">No items listed for this pass.</p>
                         ) : (
                         <div className="space-y-3">
-                            {selectedPass.items.map((item: GatePassItem) => (
+                            {itemsToDisplay.map((item: GatePassItem) => (
                             <div key={item.productId || item.name} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50 hover:shadow-sm transition-shadow">
                                 {item.imageUrl ? (
                                 <Image
@@ -211,6 +220,19 @@ export function OutgoingLogList() {
                                 </div>
                             </div>
                             ))}
+                             {selectedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
+                                <Button 
+                                    variant="link" 
+                                    className="w-full mt-2" 
+                                    onClick={() => setShowAllItemsInModal(!showAllItemsInModal)}
+                                >
+                                    {showAllItemsInModal ? (
+                                        <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
+                                    ) : (
+                                        <>Show More ({selectedPass.items.length - ITEMS_DISPLAY_THRESHOLD} more) <ChevronDown className="ml-2 h-4 w-4" /></>
+                                    )}
+                                </Button>
+                            )}
                         </div>
                         )}
                     </CardContent>
@@ -287,3 +309,4 @@ export function OutgoingLogList() {
     </>
   );
 }
+
