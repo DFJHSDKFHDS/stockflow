@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Printer, Copy, Bluetooth } from "lucide-react"; // Added Bluetooth icon
+import { Printer, Copy, Bluetooth } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { QRCodeCanvas } from 'qrcode.react';
@@ -117,7 +117,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       printWindow.document.write('</div>');
       
       if (qrImageForPrint) {
-        printWindow.document.write(`<div class="qr-code-container"><img src="${qrImageForPrint}" alt="QR Code for ${qrCodeData}" /></div>`);
+        printWindow.document.write(`<div class="qr-code-container"><img src="${qrImageForPrint}" alt="QR Code for ${qrCodeData.substring(0,15)}..." /></div>`);
       } else if (qrCodeData) {
          printWindow.document.write(`<div class="qr-code-container"><p style="font-size: 8pt;">[QR Code for Pass ID: ${qrCodeData.substring(0,15)}... Image generation failed]</p></div>`);
       }
@@ -147,48 +147,57 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
 
     try {
       // 2. Request Bluetooth device
-      // Using a common service UUID for "Device Information" to increase chances of seeing devices.
-      // For actual printer, you'd use its specific service UUID.
-      // Or use acceptAllDevices: true (with caution) for broader discovery during initial testing.
+      // Using acceptAllDevices: true for broader discovery during initial testing.
+      // IMPORTANT: For production, you should filter by specific service UUIDs of your target printers.
+      // Using acceptAllDevices can show many irrelevant devices and has security implications.
       const device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: ['0000180a-0000-1000-8000-00805f9b34fb'] }], // Device Information Service
-        // acceptAllDevices: true, // Uncomment for broader discovery if the filter above shows nothing.
-                                 // Note: acceptAllDevices is less secure and might be removed by browsers.
-        optionalServices: [] 
+        // filters: [{ services: ['0000180a-0000-1000-8000-00805f9b34fb'] }], // Example: Device Information Service
+        acceptAllDevices: true, // Shows all discoverable Bluetooth devices. Good for initial testing.
+        optionalServices: [] // You might need to list specific service UUIDs your printer uses here later.
       });
       
-      console.log("Selected Bluetooth device:", device);
-      toast({ 
-        title: "Device Selected!", 
-        description: `Device "${device.name || device.id}" selected. Next step would be GATT connection.` 
-      });
+      if (device) {
+        console.log("Selected Bluetooth device:", device);
+        toast({ 
+          title: "Device Selected!", 
+          description: `Device "${device.name || device.id}" selected. Next step would be GATT connection to a printer.` 
+        });
+      } else {
+        // This case should not be reached if requestDevice resolves without error and returns a device.
+        // If it's reached, it implies an unexpected state.
+        toast({ title: "Bluetooth Test", description: "No device was selected or selection process was cancelled without error.", variant: "default"});
+      }
 
-      // 3. Connect to the GATT Server (Commented out for no-printer test)
-      // toast({ title: "Simulating Connection", description: `Would attempt to connect to ${device.name || device.id}`});
-      // const server = await device.gatt.connect();
-      // toast({ title: "Connected (Simulated)", description: `Connected to ${device.name}` });
+      // --- Further steps for actual printing (kept commented for this test) ---
+      // 3. Connect to the GATT Server
+      //    toast({ title: "Simulating Connection", description: `Would attempt to connect to ${device.name || device.id}`});
+      //    const server = await device.gatt.connect();
+      //    toast({ title: "Connected (Simulated)", description: `Connected to ${device.name}` });
 
-      // 4. Get the Printer Service and Characteristic (Commented out)
-      // const service = await server.getPrimaryService('service-uuid-for-your-printer');
-      // const characteristic = await service.getCharacteristic('characteristic-uuid-for-printing');
+      // 4. Get the Printer Service and Characteristic
+      //    const service = await server.getPrimaryService('YOUR_PRINTER_SERVICE_UUID');
+      //    const characteristic = await service.getCharacteristic('YOUR_PRINTER_CHARACTERISTIC_UUID');
 
-      // 5. Prepare Data (ESC/POS Commands) (Commented out)
-      // const encoder = new TextEncoder();
-      // const textData = encoder.encode(gatePassContent + "\n\n\n\n"); 
-      // This is where you'd construct ESC/POS commands.
+      // 5. Prepare Data (ESC/POS Commands)
+      //    const encoder = new TextEncoder();
+      //    // Example: simple text. For real printing, construct proper ESC/POS commands.
+      //    const dataToSend = encoder.encode(gatePassContent + "\n\n\n\n"); 
+      //    // You'd add commands for bold, QR, cut, etc.
 
-      // 6. Write data to the characteristic (Commented out)
-      // await characteristic.writeValueWithoutResponse(textData); // Or commandPayload
-      // toast({ title: "Success (Simulated)", description: "Data would have been sent to printer." });
+      // 6. Write data to the characteristic
+      //    await characteristic.writeValueWithoutResponse(dataToSend);
+      //    toast({ title: "Success (Simulated)", description: "Data would have been sent to printer." });
 
-      // 7. Disconnect (Commented out)
-      // await server.disconnect();
-      // toast({ title: "Disconnected (Simulated)", description: "Disconnected from printer." });
+      // 7. Disconnect
+      //    await server.disconnect();
+      //    toast({ title: "Disconnected (Simulated)", description: "Disconnected from printer." });
+      // --- End of further steps ---
 
     } catch (error: any) {
       console.error("Bluetooth Test Error:", error);
       let errorMessage = "Failed to select or interact with Bluetooth device.";
       if (error.name === 'NotFoundError') {
+        // This specific error means the user cancelled the picker or no devices were found.
         errorMessage = "No Bluetooth devices found or selected. Ensure Bluetooth is on and device is discoverable.";
       } else if (error.name === 'NotAllowedError') {
         errorMessage = "Bluetooth access denied. Please allow Bluetooth permissions for this site.";
@@ -235,7 +244,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
             </div>
             <div className="flex gap-2">
                 <Button variant="outline" onClick={onClose} size="sm">Close</Button>
-                <Button onClick={handleBluetoothPrint} size="sm" variant="outline"> {/* Added Bluetooth Print button */}
+                <Button onClick={handleBluetoothPrint} size="sm" variant="outline">
                     <Bluetooth className="mr-2 h-4 w-4" /> Bluetooth Test
                 </Button>
                 <Button onClick={handleStandardPrint} size="sm">
@@ -247,5 +256,3 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
     </Dialog>
   );
 }
-
-    
