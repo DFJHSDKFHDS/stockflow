@@ -18,7 +18,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode'; // Corrected import
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { cn } from "@/lib/utils"; // Added import for cn
 
 export function GatePassScanner() {
   const { user, loading: authLoading } = useAuth();
@@ -65,7 +66,7 @@ export function GatePassScanner() {
                 return { width: qrboxSize, height: qrboxSize };
               },
               rememberLastUsedCamera: true,
-              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] // Corrected usage
+              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
             },
             false // verbose: false
           );
@@ -117,7 +118,7 @@ export function GatePassScanner() {
         setIsScannerActive(false);
       }
     };
-  }, [toast, hasCameraPermission, isScannerActive]); // Added isScannerActive
+  }, [toast, hasCameraPermission, isScannerActive]);
 
   React.useEffect(() => {
     if (scannedPassId && user) {
@@ -365,3 +366,6 @@ export function GatePassScanner() {
     </Card>
   );
 }
+
+
+    
