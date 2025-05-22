@@ -60,16 +60,16 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       printWindow.document.write(`
         <style>
           @page { 
-            size: 80mm auto;
-            margin: 2mm;
+            size: 80mm auto; /* Best for 80mm thermal paper */
+            margin: 2mm; /* Minimal margins */
           }
           body { 
-            font-family: monospace; 
+            font-family: 'Courier New', Courier, monospace; /* Monospace for alignment */
             white-space: pre-wrap; 
             margin: 0; 
             padding: 0; 
-            font-size: 10pt; 
-            line-height: 1.15; 
+            font-size: 10pt; /* Standard POS font size */
+            line-height: 1.15; /* Adjust for readability */
             width: 76mm; /* Approx 80mm - 2*2mm page margins */
             box-sizing: border-box;
           }
@@ -80,11 +80,11 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
           .pass-text {
             margin:0; 
             padding:0; 
-            font-family: monospace;
+            font-family: 'Courier New', Courier, monospace;
             font-size: 10pt;
             line-height: 1.15;
             white-space: pre-wrap;
-            word-wrap: break-word;
+            word-wrap: break-word; /* Important for long unbroken lines if any */
             box-sizing: border-box;
             width: 100%;
           }
@@ -94,7 +94,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
             page-break-inside: avoid; 
           } 
           .qr-code-container img { 
-            max-width: 35mm; 
+            max-width: 35mm; /* Adjust QR size as needed */
             max-height: 35mm;
             display: block;
             margin-left: auto;
@@ -127,7 +127,8 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       setTimeout(() => {
         printWindow.focus(); 
         printWindow.print();
-      }, 250);
+        // printWindow.close(); // Optional: close after print dialog
+      }, 250); // Delay to allow content to render
 
     } else {
         toast({ title: "Print Error", description: "Could not open print window. Check browser pop-up settings.", variant: "destructive"});
@@ -135,80 +136,66 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
   };
 
   const handleBluetoothPrint = async () => {
-    toast({
-      title: "Bluetooth Print (Info)",
-      description: "Bluetooth printing requires Web Bluetooth API and ESC/POS command implementation. This feature is not fully implemented yet.",
-      duration: 5000,
-    });
-
-    // --- Web Bluetooth API Implementation Guide ---
+    // --- Web Bluetooth API Implementation Guide (Test Mode) ---
     // 1. Check for Web Bluetooth availability
     if (!navigator.bluetooth) {
       toast({ title: "Error", description: "Web Bluetooth API not available in this browser.", variant: "destructive" });
       return;
     }
 
+    toast({ title: "Bluetooth Test", description: "Attempting to discover Bluetooth devices..." });
+
     try {
-      // 2. Request Bluetooth device (printer)
-      // You'll need to know the service UUIDs your printer exposes.
-      // Common thermal printer service UUIDs might be generic (e.g., '000018f0-0000-1000-8000-00805f9b34fb' for serial port profile)
-      // or specific to the printer manufacturer.
-      // const device = await navigator.bluetooth.requestDevice({
-      //   filters: [{ services: ['service-uuid-for-your-printer'] }], // Replace with actual service UUID
-      //   // acceptAllDevices: true, // Use with caution, prefer filtered list
-      //   optionalServices: [] // Add any other optional services
-      // });
-      // toast({ title: "Device Requested", description: `Attempting to connect...` });
+      // 2. Request Bluetooth device
+      // Using a common service UUID for "Device Information" to increase chances of seeing devices.
+      // For actual printer, you'd use its specific service UUID.
+      // Or use acceptAllDevices: true (with caution) for broader discovery during initial testing.
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['0000180a-0000-1000-8000-00805f9b34fb'] }], // Device Information Service
+        // acceptAllDevices: true, // Uncomment for broader discovery if the filter above shows nothing.
+                                 // Note: acceptAllDevices is less secure and might be removed by browsers.
+        optionalServices: [] 
+      });
+      
+      console.log("Selected Bluetooth device:", device);
+      toast({ 
+        title: "Device Selected!", 
+        description: `Device "${device.name || device.id}" selected. Next step would be GATT connection.` 
+      });
 
-      // 3. Connect to the GATT Server
+      // 3. Connect to the GATT Server (Commented out for no-printer test)
+      // toast({ title: "Simulating Connection", description: `Would attempt to connect to ${device.name || device.id}`});
       // const server = await device.gatt.connect();
-      // toast({ title: "Connected", description: `Connected to ${device.name}` });
+      // toast({ title: "Connected (Simulated)", description: `Connected to ${device.name}` });
 
-      // 4. Get the Printer Service and Characteristic
-      // const service = await server.getPrimaryService('service-uuid-for-your-printer'); // Replace
-      // const characteristic = await service.getCharacteristic('characteristic-uuid-for-printing'); // Replace
+      // 4. Get the Printer Service and Characteristic (Commented out)
+      // const service = await server.getPrimaryService('service-uuid-for-your-printer');
+      // const characteristic = await service.getCharacteristic('characteristic-uuid-for-printing');
 
-      // 5. Prepare Data (ESC/POS Commands)
-      // This is the most complex part. You need to convert `gatePassContent` and the QR code
-      // into a sequence of ESC/POS bytes.
-      // Example for plain text (very basic):
+      // 5. Prepare Data (ESC/POS Commands) (Commented out)
       // const encoder = new TextEncoder();
-      // const textData = encoder.encode(gatePassContent + "\n\n\n\n"); // Add newlines for paper feed/cut
+      // const textData = encoder.encode(gatePassContent + "\n\n\n\n"); 
+      // This is where you'd construct ESC/POS commands.
 
-      // To print a QR code via ESC/POS, you'd need specific commands for your printer model.
-      // Or, convert the QR canvas to a bitmap and send it using ESC/POS image printing commands.
+      // 6. Write data to the characteristic (Commented out)
+      // await characteristic.writeValueWithoutResponse(textData); // Or commandPayload
+      // toast({ title: "Success (Simulated)", description: "Data would have been sent to printer." });
 
-      // Example for sending (very simplified, actual commands depend on printer):
-      // let commands = [];
-      // Initialize printer:
-      // commands.push(0x1B, 0x40); // ESC @
-      // Add text:
-      // gatePassContent.split('\n').forEach(line => {
-      //   commands.push(...new TextEncoder().encode(line), 0x0A); // LF
-      // });
-      // Add QR Code (this is highly printer-specific)
-      // E.g., for GS ( k <fn=165> (QR Code model) <fn=167> (size) <fn=169> (error correction) <fn=180> (data)
-      // const qrBytes = new TextEncoder().encode(qrCodeData);
-      // commands.push(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x03); // Model, Size, ECC
-      // commands.push(0x1D, 0x28, 0x6B, qrBytes.length + 3, 0x00, 0x31, 0x50, 0x30, ...qrBytes); // Store
-      // commands.push(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30); // Print
-
-      // Cut paper (partial cut):
-      // commands.push(0x1D, 0x56, 0x42, 0x00); // GS V B n
-      // const commandPayload = new Uint8Array(commands);
-
-
-      // 6. Write data to the characteristic
-      // await characteristic.writeValueWithoutResponse(commandPayload); // Or writeValueWithResponse if needed
-      // toast({ title: "Success", description: "Data sent to printer." });
-
-      // 7. Disconnect (optional, or keep connection if printing frequently)
+      // 7. Disconnect (Commented out)
       // await server.disconnect();
-      // toast({ title: "Disconnected", description: "Disconnected from printer." });
+      // toast({ title: "Disconnected (Simulated)", description: "Disconnected from printer." });
 
     } catch (error: any) {
-      console.error("Bluetooth Print Error:", error);
-      toast({ title: "Bluetooth Print Error", description: error.message || "Failed to print via Bluetooth.", variant: "destructive" });
+      console.error("Bluetooth Test Error:", error);
+      let errorMessage = "Failed to select or interact with Bluetooth device.";
+      if (error.name === 'NotFoundError') {
+        errorMessage = "No Bluetooth devices found or selected. Ensure Bluetooth is on and device is discoverable.";
+      } else if (error.name === 'NotAllowedError') {
+        errorMessage = "Bluetooth access denied. Please allow Bluetooth permissions for this site.";
+      } else {
+        errorMessage = error.message || errorMessage;
+      }
+      toast({ title: "Bluetooth Test Error", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -249,7 +236,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
             <div className="flex gap-2">
                 <Button variant="outline" onClick={onClose} size="sm">Close</Button>
                 <Button onClick={handleBluetoothPrint} size="sm" variant="outline"> {/* Added Bluetooth Print button */}
-                    <Bluetooth className="mr-2 h-4 w-4" /> Bluetooth Print
+                    <Bluetooth className="mr-2 h-4 w-4" /> Bluetooth Test
                 </Button>
                 <Button onClick={handleStandardPrint} size="sm">
                     <Printer className="mr-2 h-4 w-4" /> Print
