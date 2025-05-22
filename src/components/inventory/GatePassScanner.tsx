@@ -1,4 +1,3 @@
-
 // src/components/inventory/GatePassScanner.tsx
 "use client";
 
@@ -17,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info, ChevronDown, ChevronUp, Printer } from "lucide-react";
+import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info, ChevronDown, ChevronUp, Printer, Ticket as TicketIcon } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { cn } from "@/lib/utils";
@@ -56,7 +55,6 @@ export function GatePassScanner() {
       if (hasCameraPermission === false) return;
 
       try {
-        // More generic permission request
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
         tempStream.getTracks().forEach(track => track.stop()); 
         setHasCameraPermission(true);
@@ -154,7 +152,7 @@ export function GatePassScanner() {
     if (scannedPassId && user) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]); // handleFetchPass is not memoized but its effect is what matters
+  }, [scannedPassId, user]); 
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -327,32 +325,36 @@ export function GatePassScanner() {
                   <CardHeader className="pb-2 bg-muted/30">
                       <CardTitle className="text-lg">Details</CardTitle>
                        <CardDescription>
-                          ID: {fetchedPass.id.substring(1, 9)}... | Created: {fetchedPass.createdAt ? format(new Date(fetchedPass.createdAt), "PPpp") : "N/A"}
+                          Created: {fetchedPass.createdAt ? format(new Date(fetchedPass.createdAt), "PPpp") : "N/A"}
                       </CardDescription>
                   </CardHeader>
                   <CardContent className="text-sm space-y-3 pt-4">
+                      <div className="flex items-center font-semibold text-base">
+                          <TicketIcon className="mr-2 h-5 w-5 text-primary" />
+                           Gate Pass No.: <span className="ml-1">{fetchedPass.gatePassNumber}</span>
+                      </div>
                       <div className="flex items-center">
                           <UserCircle className="mr-2 h-5 w-5 text-muted-foreground" />
-                          <strong>Customer:</strong> <span className="ml-1">{fetchedPass.customerName}</span>
+                          Customer: <span className="ml-1">{fetchedPass.customerName}</span>
                       </div>
                       <div className="flex items-center">
                           <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                          <strong>Dispatch Date & Time:</strong>
+                          Dispatch Date & Time:
                           <span className="ml-1">
                               {fetchedPass.date ? format(new Date(fetchedPass.date), "PPPp") : "N/A"}
                           </span>
                       </div>
                       <div className="flex items-center">
                         <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
-                        <strong>Authorized By:</strong> <span className="ml-1">{fetchedPass.userName}</span>
+                        Authorized By: <span className="ml-1">{fetchedPass.userName}</span>
                       </div>
                        <div className="flex items-center">
                           <ShoppingBag className="mr-2 h-5 w-5 text-muted-foreground" />
-                          <strong>Total Items:</strong> <span className="ml-1">{fetchedPass.totalQuantity}</span>
+                          Total Items: <span className="ml-1">{fetchedPass.totalQuantity}</span>
                       </div>
                       <div className="flex items-center">
                           <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
-                          <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{fetchedPass.qrCodeData.substring(0,15)}...</span>
+                          Gate Pass ID: <span className="ml-1 font-mono text-xs">{fetchedPass.id.substring(1,9)}...</span>
                       </div>
                       {fetchedPass.qrCodeData && (
                           <div className="mt-3 pt-3 border-t flex flex-col items-center">
@@ -368,7 +370,7 @@ export function GatePassScanner() {
                       <CardTitle className="text-lg">Items Dispatched</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4">
-                    <ScrollArea className="pr-1"> {/* Removed max-h-[300px] */}
+                    <ScrollArea className="pr-1"> 
                       {(!fetchedPass || !fetchedPass.items || fetchedPass.items.length === 0) ? (
                           <p className="text-muted-foreground">No items listed for this pass.</p>
                       ) : (
@@ -398,20 +400,20 @@ export function GatePassScanner() {
                               </div>
                           </div>
                           ))}
-                      </div>
-                      )}
-                      {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
-                          <Button
-                              variant="link"
-                              className="w-full mt-2"
-                              onClick={() => setShowAllItems(!showAllItems)}
-                          >
-                              {showAllItems ? (
-                                  <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
-                              ) : (
-                                  <>Show More ({fetchedPass.items.length - ITEMS_DISPLAY_THRESHOLD} more) <ChevronDown className="ml-2 h-4 w-4" /></>
-                              )}
-                          </Button>
+                          {fetchedPass && fetchedPass.items && fetchedPass.items.length > ITEMS_DISPLAY_THRESHOLD && (
+                              <Button
+                                  variant="link"
+                                  className="w-full mt-2"
+                                  onClick={() => setShowAllItems(!showAllItems)}
+                              >
+                                  {showAllItems ? (
+                                      <>Show Less <ChevronUp className="ml-2 h-4 w-4" /></>
+                                  ) : (
+                                      <>Show More ({fetchedPass.items.length - ITEMS_DISPLAY_THRESHOLD} more) <ChevronDown className="ml-2 h-4 w-4" /></>
+                                  )}
+                              </Button>
+                          )}
+                        </div>
                       )}
                     </ScrollArea>
                   </CardContent>
@@ -430,4 +432,3 @@ export function GatePassScanner() {
     </>
   );
 }
-

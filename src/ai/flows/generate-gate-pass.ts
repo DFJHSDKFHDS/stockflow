@@ -23,7 +23,8 @@ const GenerateGatePassInputSchema = z.object({
   customerName: z.string().describe('The name of the customer or entity receiving the shipment.'),
   date: z.string().describe('The date and time of the shipment (e.g., Month DD, YYYY, HH:MM AM/PM).'),
   userName: z.string().describe('Name of the user/staff creating or authorizing the gate pass.'),
-  qrCodeData: z.string().describe('Unique Gate Pass ID or data to be encoded in the QR code for verification.'),
+  qrCodeData: z.string().describe('Unique Gate Pass ID (Firebase key) or data to be encoded in the QR code for verification.'),
+  gatePassNumber: z.number().describe('The sequential, human-readable number of this gate pass.'),
 });
 export type GenerateGatePassInput = z.infer<typeof GenerateGatePassInputSchema>;
 
@@ -43,8 +44,9 @@ const prompt = ai.definePrompt({
   prompt: `You are an AI assistant tasked with generating a gate pass for outgoing products.
 The pass must be optimized for printing on a thermal printer, meaning it should be concise, use simple formatting, and avoid complex graphics beyond a placeholder for a QR code.
 
-Gate Pass Details:
+GATE PASS
 --------------------
+Gate Pass No.: {{{gatePassNumber}}}
 Customer Name: {{{customerName}}}
 Date & Time: {{{date}}}
 Authorized by: {{{userName}}}
@@ -58,13 +60,14 @@ Items:
 --------------------
 
 Instructions:
-1. Create a clear header, like "GATE PASS" or "MATERIAL DISPATCH NOTE".
-2. List all items clearly. For each item, show Product Name and Quantity.
-3. Include Customer Name, Date & Time, and Authorized By fields.
-4. Crucially, include a placeholder text like "[QR Code for Gate Pass ID: {{{qrCodeData}}}]". This indicates where a QR code image would be printed. The actual QR image generation is handled separately.
-5. Ensure the layout is compact and readable on a small thermal printer slip. Use line breaks effectively.
-6. Add a simple footer, perhaps with a line for "Receiver's Signature" or a thank you note.
-7. The output should be a single block of text. Do not use Markdown formatting like backticks for code blocks.
+1. Create a clear header "GATE PASS".
+2. Display the "Gate Pass No.: {{{gatePassNumber}}}".
+3. List all items clearly. For each item, show Product Name and Quantity.
+4. Include Customer Name, Date & Time, and Authorized By fields.
+5. Crucially, include a placeholder text like "[QR Code for Gate Pass ID: {{{qrCodeData}}}]". This indicates where a QR code image would be printed. The actual QR image generation is handled separately.
+6. Ensure the layout is compact and readable on a small thermal printer slip. Use line breaks effectively.
+7. Add a simple footer, perhaps with a line for "Receiver's Signature" or a thank you note.
+8. The output should be a single block of text. Do not use Markdown formatting like backticks for code blocks.
 
 Example of a section:
 Product: Awesome Widget

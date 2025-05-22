@@ -29,12 +29,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
-import { ref as databaseRef, onValue, off, update, push, get } from "firebase/database";
+import { ref as databaseRef, onValue, off, update, push, get, runTransaction } from "firebase/database";
 import { PasswordConfirmationModal } from "@/components/auth/PasswordConfirmationModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Schema for the form fields related to dispatch details (not individual items)
 const outgoingFormDetailsSchema = z.object({
   dispatchedAt: z.date({ required_error: "Date of dispatch is required." }),
   customerName: z.string().min(3, "Customer Name is required."),
@@ -42,12 +41,10 @@ const outgoingFormDetailsSchema = z.object({
 
 type OutgoingFormDetailsValues = z.infer<typeof outgoingFormDetailsSchema>;
 
-// Interface for items selected in the cart
 interface SelectedItem extends AppGatePassItem {
   availableStock: number;
 }
 
-// Internal Product Card component for the selection pane
 const ProductSelectionCard = ({ 
   product, 
   onSelect, 
@@ -207,7 +204,7 @@ export function OutgoingForm() {
     setSelectedItems(prevItems => 
       prevItems.map(item => 
         item.productId === productId ? { ...item, quantity: clampedQuantity } : item
-      ).filter(item => item.quantity > 0) // Remove if quantity becomes 0
+      ).filter(item => item.quantity > 0) 
     );
   };
 
@@ -252,12 +249,12 @@ export function OutgoingForm() {
   const processGatePassCreation = async () => {
     if (!user || !pendingFormValues || selectedItems.length === 0) {
       toast({ title: "Error", description: "User, form data, or selected items missing.", variant: "destructive" });
+      setIsSubmitting(false); // Ensure submitting is false
       return;
     }
     setIsSubmitting(true);
     const values = pendingFormValues;
 
-    // Combine selected date with current time
     const selectedDateFromForm = new Date(values.dispatchedAt);
     const currentTime = new Date();
     const finalDispatchDateTime = new Date(
@@ -276,53 +273,70 @@ export function OutgoingForm() {
       return;
     }
     
-    const gatePassDbItems: AppGatePassItem[] = selectedItems.map(item => ({
-      productId: item.productId,
-      name: item.name,
-      sku: item.sku,
-      quantity: item.quantity,
-      imageUrl: item.imageUrl,
-    }));
-
-    const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
-    const userName = user.displayName || user.email || "N/A";
-
-    const aiInputForPassGeneration: GenerateGatePassInput = {
-      items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
-      customerName: values.customerName,
-      date: format(finalDispatchDateTime, "PPPp"), // Format with time for AI
-      userName: userName,
-      qrCodeData: gatePassId,
-    };
-
-    let generatedAiContent = "";
-    try {
-      const aiResult = await generateGatePass(aiInputForPassGeneration);
-      generatedAiContent = aiResult.gatePass;
-    } catch (aiError: any) {
-      console.error("AI Gate Pass generation failed:", aiError);
-      toast({ title: "AI Generation Warning", description: "Could not generate printable slip content from AI. Gate pass will be logged without it.", variant: "default" });
-    }
-    
-    const gatePassData: GatePass = {
-      id: gatePassId,
-      userId: user.uid,
-      userName: userName,
-      items: gatePassDbItems,
-      customerName: values.customerName,
-      date: finalDispatchDateTime.toISOString(), // Store as ISO string
-      totalQuantity: totalQuantity,
-      createdAt: new Date().toISOString(),
-      qrCodeData: gatePassId,
-      generatedPassContent: generatedAiContent,
-    };
-
-    const stockUpdates: { [key: string]: any } = {};
-    const productFetchPromises = selectedItems.map(item => 
-      get(databaseRef(rtdb, `Stockflow/${user.uid}/product/${item.productId}/currentStock`))
-    );
+    const lastGatePassNumberRef = databaseRef(rtdb, `Stockflow/${user.uid}/counters/lastGatePassNumber`);
+    let newGatePassNumber: number;
 
     try {
+      const transactionResult = await runTransaction(lastGatePassNumberRef, (currentData) => {
+        if (currentData === null) {
+          return 1; 
+        }
+        return currentData + 1;
+      });
+
+      if (!transactionResult.committed || typeof transactionResult.snapshot.val() !== 'number') {
+        throw new Error("Failed to update gate pass number counter.");
+      }
+      newGatePassNumber = transactionResult.snapshot.val() as number;
+
+      const gatePassDbItems: AppGatePassItem[] = selectedItems.map(item => ({
+        productId: item.productId,
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        imageUrl: item.imageUrl,
+      }));
+
+      const totalQuantity = gatePassDbItems.reduce((sum, item) => sum + item.quantity, 0);
+      const userName = user.displayName || user.email || "N/A";
+
+      const aiInputForPassGeneration: GenerateGatePassInput = {
+        items: gatePassDbItems.map(p => ({ productName: p.name, quantity: p.quantity })),
+        customerName: values.customerName,
+        date: format(finalDispatchDateTime, "PPPp"),
+        userName: userName,
+        qrCodeData: gatePassId,
+        gatePassNumber: newGatePassNumber,
+      };
+
+      let generatedAiContent = "";
+      try {
+        const aiResult = await generateGatePass(aiInputForPassGeneration);
+        generatedAiContent = aiResult.gatePass;
+      } catch (aiError: any) {
+        console.error("AI Gate Pass generation failed:", aiError);
+        toast({ title: "AI Generation Warning", description: "Could not generate printable slip content from AI. Gate pass will be logged without it.", variant: "default" });
+      }
+      
+      const gatePassData: GatePass = {
+        id: gatePassId,
+        gatePassNumber: newGatePassNumber,
+        userId: user.uid,
+        userName: userName,
+        items: gatePassDbItems,
+        customerName: values.customerName,
+        date: finalDispatchDateTime.toISOString(),
+        totalQuantity: totalQuantity,
+        createdAt: new Date().toISOString(),
+        qrCodeData: gatePassId,
+        generatedPassContent: generatedAiContent,
+      };
+
+      const stockUpdates: { [key: string]: any } = {};
+      const productFetchPromises = selectedItems.map(item => 
+        get(databaseRef(rtdb, `Stockflow/${user.uid}/product/${item.productId}/currentStock`))
+      );
+      
       const productStockSnapshots = await Promise.all(productFetchPromises);
       
       for (let i = 0; i < selectedItems.length; i++) {
@@ -331,6 +345,13 @@ export function OutgoingForm() {
         const currentStock = currentStockSnapshot.val();
 
         if (typeof currentStock !== 'number' || item.quantity > currentStock) {
+          // Rollback counter if stock check fails before saving pass
+          await runTransaction(lastGatePassNumberRef, (currentData) => {
+            if (currentData !== null && currentData >= newGatePassNumber) { // only decrement if it was indeed incremented
+              return currentData - 1;
+            }
+            return currentData;
+          });
           toast({ title: "Stock Update Error", description: `Not enough stock for ${item.name}. Available: ${currentStock ?? 'N/A'}. Please refresh.`, variant: "destructive" });
           setIsSubmitting(false);
           return;
@@ -358,6 +379,15 @@ export function OutgoingForm() {
     } catch (error: any) {
       console.error("Error processing gate pass:", error);
       toast({ title: "Processing Error", description: error.message || "Failed to process gate pass and update stock.", variant: "destructive" });
+      // Attempt to rollback counter on general error after successful increment
+      if (newGatePassNumber) { // Check if newGatePassNumber was set
+          await runTransaction(lastGatePassNumberRef, (currentData) => {
+            if (currentData !== null && currentData === newGatePassNumber) { // only decrement if it's the one we set
+              return currentData - 1;
+            }
+            return currentData;
+          }).catch(rollbackError => console.error("Counter rollback failed:", rollbackError));
+      }
     } finally {
       setIsSubmitting(false);
       setPendingFormValues(null);
@@ -382,7 +412,6 @@ export function OutgoingForm() {
       />
 
       <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-var(--header-height,100px)-2rem)]">
-        {/* Left Pane: Product Selection */}
         <Card className="md:w-2/3 flex flex-col shadow-lg">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -440,7 +469,6 @@ export function OutgoingForm() {
           </CardContent>
         </Card>
 
-        {/* Right Pane: Cart & Dispatch Details */}
         <Card className="md:w-1/3 flex flex-col shadow-lg">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-lg">

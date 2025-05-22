@@ -1,4 +1,3 @@
-
 // src/components/inventory/OutgoingLogList.tsx
 "use client";
 
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { GatePass, GatePassItem } from "@/types";
-import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, Printer, ImageOff, ChevronDown, ChevronUp } from "lucide-react"; 
+import { FileText, CalendarDays, UserCircle, ShoppingBag, Hash, Eye, Printer, ImageOff, ChevronDown, ChevronUp, Ticket as TicketIcon } from "lucide-react"; 
 import { User as UserIcon } from "lucide-react"; 
 import { useAuth } from "@/contexts/AuthContext";
 import { rtdb } from "@/lib/firebase";
@@ -69,7 +68,7 @@ export function OutgoingLogList() {
             ...(value as Omit<GatePass, 'id'>),
             id: key,
           }))
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); 
+          .sort((a, b) => (b.gatePassNumber || 0) - (a.gatePassNumber || 0)); // Sort by new gatePassNumber
         setGatePasses(passList);
       } else {
         setGatePasses([]);
@@ -88,7 +87,7 @@ export function OutgoingLogList() {
 
   const handleViewPassDetails = (pass: GatePass) => {
     setSelectedPass(pass);
-    setShowAllItemsInModal(false); // Reset on opening new dialog
+    setShowAllItemsInModal(false); 
     setIsDetailsModalOpen(true);
   };
 
@@ -112,13 +111,13 @@ export function OutgoingLogList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {[...Array(6)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
+                  {[...Array(7)].map((_, i) => <TableHead key={i}><Skeleton className="h-5 w-full" /></TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
-                    {[...Array(6)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
+                    {[...Array(7)].map((_, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                   </TableRow>
                 ))}
               </TableBody>
@@ -143,7 +142,7 @@ export function OutgoingLogList() {
           <DialogHeader>
             <DialogTitle>Gate Pass Summary</DialogTitle>
             <DialogDescription>
-              ID: {selectedPass?.id.substring(1, 9)}... | Created: {selectedPass?.createdAt ? format(new Date(selectedPass.createdAt), "PPpp") : "N/A"}
+              Created: {selectedPass?.createdAt ? format(new Date(selectedPass.createdAt), "PPpp") : "N/A"}
             </DialogDescription>
           </DialogHeader>
           {selectedPass && (
@@ -154,28 +153,32 @@ export function OutgoingLogList() {
                         <CardTitle className="text-lg">Details</CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm space-y-2 pt-4">
+                        <div className="flex items-center font-semibold text-base">
+                            <TicketIcon className="mr-2 h-5 w-5 text-primary" />
+                            Gate Pass No.: <span className="ml-1">{selectedPass.gatePassNumber}</span>
+                        </div>
                         <div className="flex items-center">
                             <UserCircle className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>Customer:</strong> <span className="ml-1">{selectedPass.customerName}</span>
+                            Customer: <span className="ml-1">{selectedPass.customerName}</span>
                         </div>
                         <div className="flex items-center">
                             <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>Dispatch Date & Time:</strong> 
+                            Dispatch Date & Time: 
                             <span className="ml-1">
                                 {selectedPass.date ? format(new Date(selectedPass.date), "PPPp") : "N/A"}
                             </span>
                         </div>
                         <div className="flex items-center">
                           <UserIcon className="mr-2 h-5 w-5 text-muted-foreground" />
-                          <strong>Authorized By:</strong> <span className="ml-1">{selectedPass.userName}</span>
+                          Authorized By: <span className="ml-1">{selectedPass.userName}</span>
                         </div>
                          <div className="flex items-center">
                             <ShoppingBag className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>Total Items:</strong> <span className="ml-1">{selectedPass.totalQuantity}</span>
+                            Total Items: <span className="ml-1">{selectedPass.totalQuantity}</span>
                         </div>
                         <div className="flex items-center">
                             <Hash className="mr-2 h-5 w-5 text-muted-foreground" />
-                            <strong>QR Data (ID):</strong> <span className="ml-1 font-mono text-xs">{selectedPass.qrCodeData.substring(0,15)}...</span>
+                            Gate Pass ID: <span className="ml-1 font-mono text-xs">{selectedPass.id.substring(1,9)}...</span>
                         </div>
                         {selectedPass.qrCodeData && (
                             <div className="mt-3 pt-3 border-t flex flex-col items-center">
@@ -275,6 +278,7 @@ export function OutgoingLogList() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[100px]">Pass No.</TableHead>
                     <TableHead className="w-[180px]">Date & Time</TableHead>
                     <TableHead>Gate Pass ID</TableHead>
                     <TableHead>Customer Name</TableHead>
@@ -286,6 +290,7 @@ export function OutgoingLogList() {
                 <TableBody>
                   {gatePasses.map((pass) => (
                     <TableRow key={pass.id}>
+                      <TableCell className="font-semibold">{pass.gatePassNumber}</TableCell>
                       <TableCell>{pass.date ? format(new Date(pass.date), "MMM dd, yyyy p") : "N/A"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="font-mono">{pass.id.substring(1, 9)}...</Badge>
