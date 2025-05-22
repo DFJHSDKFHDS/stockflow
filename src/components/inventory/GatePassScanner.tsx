@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
-import { cn } from "@/lib/utils"; // Added import for cn
+import { cn } from "@/lib/utils";
 
 export function GatePassScanner() {
   const { user, loading: authLoading } = useAuth();
@@ -50,8 +50,9 @@ export function GatePassScanner() {
       if (hasCameraPermission === false) return; 
 
       try {
+        // Check for environment camera support and get permission
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        tempStream.getTracks().forEach(track => track.stop());
+        tempStream.getTracks().forEach(track => track.stop()); // Stop temp stream, scanner will start its own
         setHasCameraPermission(true);
         setIsScannerActive(true);
 
@@ -66,7 +67,10 @@ export function GatePassScanner() {
                 return { width: qrboxSize, height: qrboxSize };
               },
               rememberLastUsedCamera: true,
-              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+              videoConstraints: { // Prefer back camera
+                facingMode: "environment"
+              }
             },
             false // verbose: false
           );
@@ -86,7 +90,7 @@ export function GatePassScanner() {
           };
 
           const onScanFailure = (error: any) => {
-            // console.warn(`QR scan failure: ${error}`);
+            // console.warn(`QR scan failure: ${error}`); // Can be noisy, uncomment for debugging
           };
 
           scanner.render(onScanSuccess, onScanFailure);
@@ -99,7 +103,7 @@ export function GatePassScanner() {
         toast({
           variant: 'destructive',
           title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings or ensure no other app is using the camera.',
+          description: 'Please enable camera permissions in your browser settings, ensure the back camera is available, or check if another app is using the camera.',
         });
       }
     };
@@ -112,7 +116,7 @@ export function GatePassScanner() {
     return () => {
       if (html5QrCodeScannerRef.current) {
         html5QrCodeScannerRef.current.clear().catch(err => {
-          // console.error("Failed to clear scanner on unmount", err);
+          // console.error("Failed to clear scanner on unmount", err); // Can be noisy
         });
         html5QrCodeScannerRef.current = null;
         setIsScannerActive(false);
@@ -124,7 +128,7 @@ export function GatePassScanner() {
     if (scannedPassId && user) {
       handleFetchPass(scannedPassId);
     }
-  }, [scannedPassId, user]);
+  }, [scannedPassId, user]); // Added user to dependencies
 
 
   const handleFetchPass = async (passIdToFetch: string) => {
@@ -366,6 +370,3 @@ export function GatePassScanner() {
     </Card>
   );
 }
-
-
-    
