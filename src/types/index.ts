@@ -16,17 +16,18 @@ export interface Product {
 }
 
 export interface StockLog {
-  id:string;
+  id: string;
   productId: string;
-  productName: string; 
+  productName: string; // Denormalized for easier display
   quantity: number;
-  timestamp: string; 
+  timestamp: string; // ISO string, represents creation time of the log
   userId: string;
   type: 'incoming' | 'outgoing';
 }
 
 export interface IncomingLog extends StockLog {
   type: 'incoming';
+  receivedAt: string; // ISO string, represents actual date of stock arrival (can be different from log creation)
   purchaseOrder?: string;
   supplier?: string;
 }
@@ -34,7 +35,7 @@ export interface IncomingLog extends StockLog {
 export interface OutgoingLog extends StockLog {
   type: 'outgoing';
   customerName: string; 
-  gatePassId?: string; 
+  gatePassId?: string; // Corresponds to GatePass.id
 }
 
 export interface GatePassItem {
@@ -52,9 +53,9 @@ export interface GatePass {
   userName: string; 
   items: GatePassItem[];
   customerName: string; 
-  date: string; 
+  date: string; // ISO string for dispatch date & time
   totalQuantity: number;
-  createdAt: string; 
+  createdAt: string; // ISO string for gate pass creation time
   qrCodeData: string; 
   generatedPassContent?: string; 
 }

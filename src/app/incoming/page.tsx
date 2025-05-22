@@ -1,17 +1,17 @@
 // src/app/incoming/page.tsx
 import { AppLayout } from "@/components/layout/AppLayout";
-import { IncomingForm } from "@/components/inventory/IncomingForm";
+import { IncomingLogList } from "@/components/inventory/IncomingLogList";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Log Incoming Stock - StockFlow',
-  description: 'Record new stock arrivals.',
+  title: 'Incoming Stock Logs - StockFlow',
+  description: 'View history of incoming stock and restock inventory.',
 };
 
-export default function IncomingPage() {
+export default function IncomingStockLogsPage() {
   return (
     <AppLayout>
-      <IncomingForm />
+      <IncomingLogList />
     </AppLayout>
   );
 }
