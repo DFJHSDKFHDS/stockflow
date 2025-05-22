@@ -57,48 +57,64 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       }
 
       printWindow.document.write('<html><head><title>Gate Pass</title>');
-      // Updated print styles
       printWindow.document.write(`
         <style>
           @page { 
             size: 80mm auto; /* Suggest 80mm width, auto height */
-            margin: 2mm;     /* Minimal margins as requested */
+            margin: 2mm;     /* Minimal margins */
           }
           body { 
             font-family: monospace; 
             white-space: pre-wrap; 
-            margin: 0; /* Body margin handled by @page */
-            padding: 0; /* Content should flow within the @page margins */
-            font-size: 10pt; /* Requested font size */
-            line-height: 1.15; /* Requested line spacing */
+            margin: 0; 
+            padding: 0; 
+            font-size: 10pt; 
+            line-height: 1.15; 
             width: 76mm; /* Approx 80mm - 2*2mm page margins */
             box-sizing: border-box;
-          } 
+          }
+          .content-wrapper {
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .pass-text {
+            margin:0; 
+            padding:0; 
+            font-family: monospace; /* Explicitly set for pre */
+            font-size: 10pt; /* Explicitly set for pre */
+            line-height: 1.15; /* Explicitly set for pre */
+            white-space: pre-wrap; /* Crucial for pre-formatted text */
+            word-wrap: break-word; /* Safety for overflow */
+            box-sizing: border-box;
+            width: 100%;
+          }
           .qr-code-container { 
-            margin-top: 5mm; /* Space above QR code */
+            margin-top: 5mm; 
             text-align: center; 
-            page-break-inside: avoid; /* Try to keep QR with content */
+            page-break-inside: avoid; 
           } 
           .qr-code-container img { 
-            max-width: 35mm; /* Adjust QR code size for 80mm paper */
+            max-width: 35mm; 
             max-height: 35mm;
             display: block;
             margin-left: auto;
             margin-right: auto;
           }
-          /* Hide elements not meant for printing if any were added */
           .no-print { display: none; }
         </style>
       `);
       printWindow.document.write('</head><body>');
-      // Sanitize gatePassContent for HTML display in print window
+      
       const sanitizedGatePassContent = gatePassContent
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
-      printWindow.document.write('<pre style="margin:0; padding:0;">' + sanitizedGatePassContent + '</pre>'); // Wrap in pre for formatting
+      
+      printWindow.document.write('<div class="content-wrapper">'); // Wrap content
+      printWindow.document.write('<pre class="pass-text">' + sanitizedGatePassContent + '</pre>');
+      printWindow.document.write('</div>');
       
       if (qrImageForPrint) {
         printWindow.document.write(`<div class="qr-code-container"><img src="${qrImageForPrint}" alt="QR Code for ${qrCodeData}" /></div>`);
@@ -109,10 +125,8 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
       printWindow.document.close();
       
       setTimeout(() => {
-        printWindow.focus(); // Ensure the window has focus
+        printWindow.focus(); 
         printWindow.print();
-        // Optionally close the print window after print dialog is handled
-        // printWindow.close(); // This can be disruptive if user wants to reprint or save as PDF
       }, 250);
 
     } else {
@@ -142,6 +156,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData }: 
           </pre>
           {qrCodeData && (
             <div className="mt-4 text-center">
+              {/* Canvas used for generating print image, not directly displayed if not needed */}
               <QRCodeCanvas id={qrCanvasId} value={qrCodeData} size={150} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} style={{display: 'block', margin: '0 auto'}} />
               <p className="text-xs text-muted-foreground mt-1">QR Code (Data: {qrCodeData.substring(0,30)}...)</p>
             </div>
