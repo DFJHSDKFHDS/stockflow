@@ -36,6 +36,7 @@ import {
   Settings,
   LogOut,
   FileText, 
+  QrCode, // Added QrCode icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -58,6 +59,7 @@ const navItems: NavItem[] = [
   },
   { href: "/incoming", label: "Incoming Stock", icon: ArrowDownToLine },
   { href: "/outgoing-logs", label: "Outgoing Stock", icon: ArrowUpFromLine }, 
+  { href: "/scan-pass", label: "Scan Pass ID", icon: QrCode }, // Added Scan Pass item
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
