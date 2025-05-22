@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QrCode, CameraOff, PackageSearch, UserCircle, CalendarDays, User as UserIcon, ShoppingBag, Hash, ImageOff, Search, Info } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
-import { Html5QrcodeScanner, ScanType } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode'; // Corrected import
 
 export function GatePassScanner() {
   const { user, loading: authLoading } = useAuth();
@@ -46,11 +46,9 @@ export function GatePassScanner() {
         return;
       }
 
-      if (hasCameraPermission === false) return; // Don't try if permission explicitly denied
+      if (hasCameraPermission === false) return; 
 
       try {
-        // Check permission implicitly by trying to get stream, then stop it.
-        // The library will manage its own stream.
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         tempStream.getTracks().forEach(track => track.stop());
         setHasCameraPermission(true);
@@ -67,9 +65,9 @@ export function GatePassScanner() {
                 return { width: qrboxSize, height: qrboxSize };
               },
               rememberLastUsedCamera: true,
-              supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA]
+              supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] // Corrected usage
             },
-            false // verbose
+            false // verbose: false
           );
 
           const onScanSuccess = (decodedText: string, decodedResult: any) => {
@@ -78,11 +76,11 @@ export function GatePassScanner() {
                 setIsScannerActive(false);
               }).catch(err => {
                 console.error("Failed to clear scanner", err);
-                setIsScannerActive(false);
+                setIsScannerActive(false); 
               });
             }
             setScannedPassId(decodedText);
-            setFetchedPass(null); // Clear previous pass details
+            setFetchedPass(null); 
             setFetchError(null);
           };
 
@@ -104,22 +102,22 @@ export function GatePassScanner() {
         });
       }
     };
-
-    // Only attempt to start if permission state is null (initial) or explicitly true
-    if (hasCameraPermission === null || (hasCameraPermission === true && !html5QrCodeScannerRef.current)) {
-      startScanner();
+    
+    if (hasCameraPermission === null || (hasCameraPermission === true && !isScannerActive && !html5QrCodeScannerRef.current && document.getElementById(qrReaderId))) {
+        startScanner();
     }
+
 
     return () => {
       if (html5QrCodeScannerRef.current) {
         html5QrCodeScannerRef.current.clear().catch(err => {
-          console.error("Failed to clear scanner on unmount", err);
+          // console.error("Failed to clear scanner on unmount", err);
         });
         html5QrCodeScannerRef.current = null;
         setIsScannerActive(false);
       }
     };
-  }, [toast, hasCameraPermission]);
+  }, [toast, hasCameraPermission, isScannerActive]); // Added isScannerActive
 
   React.useEffect(() => {
     if (scannedPassId && user) {
@@ -161,7 +159,7 @@ export function GatePassScanner() {
     if (html5QrCodeScannerRef.current && isScannerActive) {
         html5QrCodeScannerRef.current.clear().then(() => setIsScannerActive(false)).catch(console.error);
     }
-    setScannedPassId(""); // Clear any scanned ID if manual is used
+    setScannedPassId(""); 
     handleFetchPass(manualPassId);
   };
 
@@ -170,20 +168,12 @@ export function GatePassScanner() {
     setFetchError(null);
     setScannedPassId("");
     setManualPassId("");
-    if (hasCameraPermission === true && !isScannerActive && document.getElementById(qrReaderId)) {
-         if (html5QrCodeScannerRef.current) {
-            html5QrCodeScannerRef.current.clear().catch(console.error);
-            html5QrCodeScannerRef.current = null;
-         }
-        // Re-trigger scanner initialization logic by toggling a state or directly calling start
-        // For simplicity here, just re-set hasCameraPermission to null to trigger effect
-        // A more direct method would be to call a startScanner function directly.
-        // However, the useEffect is designed to handle this if hasCameraPermission changes.
-        // Let's try setting hasCameraPermission to null to re-trigger.
-        setHasCameraPermission(null); // This will re-trigger the useEffect
-    } else if (hasCameraPermission === null) {
-        // Effect will run anyway
+    if (html5QrCodeScannerRef.current) {
+        html5QrCodeScannerRef.current.clear().catch(console.error);
+        html5QrCodeScannerRef.current = null; 
     }
+    setIsScannerActive(false); 
+    setHasCameraPermission(null); // Re-trigger camera permission check and scanner start
   };
 
 
@@ -205,9 +195,15 @@ export function GatePassScanner() {
 
         {hasCameraPermission === true && !fetchedPass && !fetchError && (
           <div className="space-y-4">
-            <div id={qrReaderId} className="w-full md:w-[400px] aspect-square mx-auto border rounded-md bg-muted overflow-hidden">
+             {/* Ensure qrReaderId div is always in the DOM when scanner might activate */}
+            <div id={qrReaderId} className={cn("w-full md:w-[400px] aspect-square mx-auto border rounded-md bg-muted overflow-hidden", !isScannerActive && "hidden")}>
               {/* QR Scanner will render here by html5-qrcode */}
             </div>
+             {!isScannerActive && hasCameraPermission && (
+              <Button onClick={handleRescan} variant="outline" className="w-full">
+                Activate Scanner
+              </Button>
+            )}
             {isScannerActive && (
               <Alert variant="default">
                 <QrCode className="h-4 w-4" />
@@ -235,13 +231,6 @@ export function GatePassScanner() {
                 Scan Another Pass
             </Button>
         )}
-
-        {!isScannerActive && hasCameraPermission === true && !fetchedPass && (
-             <Button onClick={handleRescan} variant="outline" className="w-full">
-                Re-activate Scanner
-            </Button>
-        )}
-
 
         <form onSubmit={handleSubmitManualId} className="space-y-3">
           <Label htmlFor="manualPassId">Manual Gate Pass ID Entry</Label>
