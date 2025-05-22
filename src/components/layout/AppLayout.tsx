@@ -36,7 +36,8 @@ import {
   Settings,
   LogOut,
   FileText, 
-  QrCode, // Added QrCode icon
+  QrCode,
+  UserCircle, // Added UserCircle icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -59,7 +60,7 @@ const navItems: NavItem[] = [
   },
   { href: "/incoming", label: "Incoming Stock", icon: ArrowDownToLine },
   { href: "/outgoing-logs", label: "Outgoing Stock", icon: ArrowUpFromLine }, 
-  { href: "/scan-pass", label: "Scan Pass ID", icon: QrCode }, // Added Scan Pass item
+  { href: "/scan-pass", label: "Scan Pass ID", icon: QrCode },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         }
       }
     }
+    // Check for profile page specifically
+    if (pathname === "/profile") return "User Profile";
+
     const matchedItem = navItems.find(item => item.href === pathname || (item.exact && pathname === item.href));
     return matchedItem?.label || "StockFlow";
   }
@@ -123,13 +127,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </Avatar>
                 <div className="ml-2 text-left group-data-[collapsible=icon]:hidden"> 
                   <p className="text-sm font-medium truncate">{user?.displayName || user?.email}</p>
-                  <p className="text-xs text-muted-foreground">View Profile</p>
+                  <p className="text-xs text-muted-foreground">Account</p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-56 mb-2 ml-2">
               <DropdownMenuLabel>{user?.displayName || user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <Link href="/profile" passHref legacyBehavior>
+                <DropdownMenuItem asChild>
+                  <a><UserCircle className="mr-2 h-4 w-4" /> Profile</a>
+                </DropdownMenuItem>
+              </Link>
               {/* <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span> 

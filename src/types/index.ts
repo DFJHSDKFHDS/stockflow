@@ -9,7 +9,7 @@ export interface Product {
   currentStock: number;
   unitPrice?: number; // Optional: if tracking value
   supplier?: string; // Optional
-  imageUrl?: string; 
+  imageUrl: string; 
   createdAt: string; 
   updatedAt: string; 
   userId: string; 
@@ -66,3 +66,8 @@ export interface InventorySummary {
   outgoingToday: number; 
 }
 
+export interface UserProfileData {
+  shopName: string;
+  contactNo: string;
+  address: string;
+}
