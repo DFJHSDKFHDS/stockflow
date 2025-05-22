@@ -3,58 +3,70 @@
   "name": "StockFlow - Inventory Management",
   "short_name": "StockFlow",
   "description": "Responsive inventory management app by Firebase Studio",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#EEEEEE",
-  "theme_color": "#3F51B5",
   "icons": [
+    {
+      "src": "https://placehold.co/48x48.png?text=SF",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
     {
       "src": "https://placehold.co/72x72.png?text=SF",
       "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "https://placehold.co/96x96.png?text=SF",
       "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "https://placehold.co/128x128.png?text=SF",
       "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "https://placehold.co/144x144.png?text=SF",
       "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "https://placehold.co/152x152.png?text=SF",
       "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "https://placehold.co/192x192.png?text=SF",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://placehold.co/192x192.png?text=SFM",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "https://placehold.co/384x384.png?text=SF",
       "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "https://placehold.co/512x512.png?text=SF",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://placehold.co/512x512.png?text=SFM",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EEEEEE",
+  "theme_color": "#3F51B5",
+  "orientation": "portrait-primary"
 }
