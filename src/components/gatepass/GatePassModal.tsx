@@ -1,3 +1,4 @@
+
 // src/components/gatepass/GatePassModal.tsx
 "use client";
 
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Printer, Copy, Bluetooth } from "lucide-react";
+import { Printer, Copy, Bluetooth, Loader2 } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { QRCodeCanvas } from 'qrcode.react';
@@ -21,12 +22,13 @@ interface GatePassModalProps {
   onClose: () => void;
   gatePassContent: string;
   qrCodeData: string; 
-  shopNameToBold?: string; // Added prop
+  shopNameToBold?: string;
 }
 
 export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, shopNameToBold }: GatePassModalProps) {
   const { toast } = useToast();
   const qrCanvasId = "qr-canvas-for-print";
+  const [isBluetoothPrinting, setIsBluetoothPrinting] = React.useState(false);
 
   const handleStandardPrint = () => {
     toast({
@@ -63,60 +65,60 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       }
 
       printWindow.document.write('<html><head><title>Gate Pass</title>');
-      printWindow.document.write(`
-        <style>
-          @page { 
-            size: 80mm auto; 
-            margin: 2mm; 
-          }
-          body { 
-            font-family: 'Courier New', Courier, monospace; 
-            white-space: pre-wrap; 
-            margin: 0; 
-            padding: 0; 
-            font-size: 10pt; 
-            line-height: 1.15; 
-            width: 76mm; 
-            box-sizing: border-box;
-          }
-          .content-wrapper {
-            width: 100%;
-            box-sizing: border-box;
-          }
-          .pass-line {
-            margin:0; 
-            padding:0; 
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 10pt;
-            line-height: 1.15;
-            white-space: pre; /* Use pre to respect all spaces for alignment */
-            word-wrap: break-word; 
-            box-sizing: border-box;
-            width: 100%;
-          }
-          .shop-name-line {
-            font-weight: bold;
-          }
-          .qr-code-container { 
-            margin-top: 5mm; 
-            text-align: center; 
-            page-break-inside: avoid; 
-          } 
-          .qr-code-container img { 
-            max-width: 35mm; 
-            max-height: 35mm;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-          }
-          .no-print { display: none; }
-        </style>
-      `);
+      printWindow.document.write(
+        '<style>' +
+        '  @page { ' +
+        '    size: 80mm auto; ' +
+        '    margin: 2mm; ' +
+        '  }' +
+        '  body { ' +
+        '    font-family: \'Courier New\', Courier, monospace; ' +
+        '    white-space: pre-wrap; ' +
+        '    margin: 0; ' +
+        '    padding: 0; ' +
+        '    font-size: 10pt; ' +
+        '    line-height: 1.15; ' +
+        '    width: 76mm; ' +
+        '    box-sizing: border-box;' +
+        '  }' +
+        '  .content-wrapper {' +
+        '    width: 100%;' +
+        '    box-sizing: border-box;' +
+        '  }' +
+        '  .pass-line {' +
+        '    margin:0; ' +
+        '    padding:0; ' +
+        '    font-family: \'Courier New\', Courier, monospace;' +
+        '    font-size: 10pt;' +
+        '    line-height: 1.15;' +
+        '    white-space: pre; /* Use pre to respect all spaces for alignment */' +
+        '    word-wrap: break-word; ' +
+        '    box-sizing: border-box;' +
+        '    width: 100%;' +
+        '  }' +
+        '  .shop-name-line {' +
+        '    font-weight: bold;' +
+        '  }' +
+        '  .qr-code-container { ' +
+        '    margin-top: 5mm; ' +
+        '    text-align: center; ' +
+        '    page-break-inside: avoid; ' +
+        '  } ' +
+        '  .qr-code-container img { ' +
+        '    max-width: 35mm; ' +
+        '    max-height: 35mm;' +
+        '    display: block;' +
+        '    margin-left: auto;' +
+        '    margin-right: auto;' +
+        '  }' +
+        '  .no-print { display: none; }' +
+        '</style>'
+      );
       printWindow.document.write('</head><body>');
       
       printWindow.document.write('<div class="content-wrapper">');
       
-      const lines = gatePassContent.split('\n');
+      const lines = gatePassContent.split('\\n');
       lines.forEach(line => {
         const sanitizedLine = line
           .replace(/&/g, "&amp;")
@@ -125,8 +127,6 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
-        // Check if shopNameToBold is provided and if the current line *is* the shop name
-        // Assuming shopNameToBold is the exact, uppercase string as generated.
         const isShopNameLine = shopNameToBold && sanitizedLine.trim().toUpperCase() === shopNameToBold.trim().toUpperCase();
         
         if (isShopNameLine) {
@@ -139,9 +139,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       printWindow.document.write('</div>');
       
       if (qrImageForPrint) {
-        printWindow.document.write(`<div class="qr-code-container"><img src="${qrImageForPrint}" alt="QR Code for ${qrCodeData.substring(0,15)}..." /></div>`);
+        printWindow.document.write('<div class="qr-code-container"><img src="' + qrImageForPrint + '" alt="QR Code for ' + qrCodeData.substring(0,15) + '..." /></div>');
       } else if (qrCodeData) {
-         printWindow.document.write(`<div class="qr-code-container"><p style="font-size: 8pt;">[QR Code for Pass ID: ${qrCodeData.substring(0,15)}... Image generation failed]</p></div>`);
+         printWindow.document.write('<div class="qr-code-container"><p style="font-size: 8pt;">[QR Code for Pass ID: ' + qrCodeData.substring(0,15) + '... Image generation failed]</p></div>');
       }
       printWindow.document.write('</body></html>');
       printWindow.document.close();
@@ -158,38 +158,137 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
 
   const handleBluetoothPrint = async () => {
     if (!navigator.bluetooth) {
-      toast({ title: "Error", description: "Web Bluetooth API not available in this browser.", variant: "destructive" });
+      toast({ title: "Error", description: "Web Bluetooth API not available. Use Chrome/Edge on Desktop/Android.", variant: "destructive" });
       return;
     }
+    setIsBluetoothPrinting(true);
+    toast({ title: "Bluetooth Printing", description: "Searching for Bluetooth devices..." });
 
-    toast({ title: "Bluetooth Test", description: "Attempting to discover Bluetooth devices..." });
+    let device: BluetoothDevice | null = null;
+    let server: BluetoothRemoteGATTServer | undefined = undefined;
 
     try {
-      const device = await navigator.bluetooth.requestDevice({
+      device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true, 
-        optionalServices: [] 
+        // For production, you'd filter by specific service UUIDs or name prefixes
+        // e.g., filters: [{ namePrefix: 'ATPOS' }, { services: ['your_printer_service_uuid_here'] }]
+        // Common Serial Port Profile (SPP) UUID for some printers: '00001101-0000-1000-8000-00805f9b34fb'
+        // Consult your Atpos AT-402 manual for specific service UUIDs related to printing.
       });
+
+      if (!device) {
+        toast({ title: "Bluetooth Printing", description: "No device selected.", variant: "default" });
+        setIsBluetoothPrinting(false);
+        return;
+      }
+
+      toast({ title: "Bluetooth Printing", description: `Connecting to "${device.name || device.id}"...` });
+      if (!device.gatt) {
+        toast({ title: "Bluetooth Error", description: "Selected device does not support GATT. This printer might use Bluetooth Classic SPP which isn't directly accessible via Web Bluetooth for raw data transfer in the same way as GATT for this simple demo.", variant: "destructive" });
+        setIsBluetoothPrinting(false);
+        return;
+      }
       
-      if (device) {
-        console.log("Selected Bluetooth device:", device);
-        toast({ 
-          title: "Device Selected!", 
-          description: `Device "${device.name || device.id}" selected. Next step would be GATT connection to a printer.` 
-        });
-      } else {
-        toast({ title: "Bluetooth Test", description: "No device was selected or selection process was cancelled without error.", variant: "default"});
-      }
+      server = await device.gatt.connect();
+      toast({ title: "Bluetooth Printing", description: "Connected! Discovering services..." });
+
+      // TODO: Replace with your printer's actual Service and Characteristic UUIDs
+      // These UUIDs are specific to how your Atpos AT-402 printer exposes its printing functionality.
+      // You MUST find these in the printer's technical/programming manual.
+      const PRINTER_SERVICE_UUID = '000018f0-0000-1000-8000-00805f9b34fb'; // Example: Generic Access Service (for test) / OR actual printer service
+      const PRINTER_CHARACTERISTIC_UUID = '00002af1-0000-1000-8000-00805f9b34fb'; // Example: Generic Write Characteristic (for test) / OR actual printer characteristic
+
+      // For actual printing, find the service and characteristic that accept print data
+      // const primaryService = await server.getPrimaryService(PRINTER_SERVICE_UUID);
+      // const characteristic = await primaryService.getCharacteristic(PRINTER_CHARACTERISTIC_UUID);
+
+      // --- Construct ESC/POS commands ---
+      const encoder = new TextEncoder(); // Default is UTF-8
+      let escPosCommands = new Uint8Array();
+
+      const appendBytes = (newBytes: Uint8Array) => {
+        const combined = new Uint8Array(escPosCommands.length + newBytes.length);
+        combined.set(escPosCommands);
+        combined.set(newBytes, escPosCommands.length);
+        escPosCommands = combined;
+      };
+      
+      // 1. Initialize Printer (ESC @)
+      appendBytes(new Uint8Array([0x1B, 0x40]));
+
+      // 2. Add Gate Pass Text Content (line by line)
+      gatePassContent.split('\\n').forEach(line => {
+        appendBytes(encoder.encode(line));
+        appendBytes(new Uint8Array([0x0A])); // Line Feed (LF)
+      });
+      appendBytes(new Uint8Array([0x0A])); // Extra line feed
+
+      // 3. Print QR Code
+      //    This is highly printer-specific. Many printers have ESC/POS commands to generate
+      //    and print a QR code from a string. Refer to Atpos AT-402 manual.
+      //    Example conceptual structure (actual commands will vary greatly):
+      //    const qrDataBytes = encoder.encode(qrCodeData);
+      //    // Parameters for QR: model, size, error correction level
+      //    // Example: GS ( k <Function 180> for QR setup
+      //    appendBytes(new Uint8Array([0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00])); // Model QR Code 2
+      //    appendBytes(new Uint8Array([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x03 ]));     // Size: 3
+      //    appendBytes(new Uint8Array([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30 ]));     // Error correction: L (ASCII '0')
+      //    // Store data: GS ( k <Function 181>
+      //    const pL = (qrDataBytes.length + 3) % 256;
+      //    const pH = Math.floor((qrDataBytes.length + 3) / 256);
+      //    appendBytes(new Uint8Array([0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30]));
+      //    appendBytes(qrDataBytes);
+      //    // Print stored QR: GS ( k <Function 182>
+      //    appendBytes(new Uint8Array([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]));
+      //    appendBytes(new Uint8Array([0x0A])); // Line feed after QR
+      // For now, a text placeholder as specific commands are needed:
+      appendBytes(encoder.encode("\n[Implement ESC/POS QR Print Here]\n"));
+      appendBytes(new Uint8Array([0x0A, 0x0A]));
+
+
+      // 4. Feed paper and Cut (GS V B 0 - partial cut, if supported)
+      appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); 
+      // Or just feed a few lines: ESC d n (n lines)
+      // appendBytes(new Uint8Array([0x1B, 0x64, 0x03])); // Feed 3 lines
+      // --- End of ESC/POS command construction ---
+
+      // TODO: Uncomment and use the actual characteristic when UUIDs are known and printer is ready
+      // await characteristic.writeValueWithResponse(escPosCommands);
+      // toast({ title: "Bluetooth Printing", description: "Data sent to printer successfully!" });
+      
+      console.log("Simulating sending ESC/POS commands:", escPosCommands);
+      const commandPreview = Array.from(escPosCommands).map(b => b.toString(16).padStart(2, '0')).join(' ');
+      console.log("ESC/POS (hex):", commandPreview);
+      toast({ 
+        title: "Bluetooth Ready (Simulated)", 
+        description: `ESC/POS commands prepared for "${device.name || device.id}". Actual sending is commented out. Check console for command hex.`,
+        duration: 7000,
+      });
+
+
     } catch (error: any) {
-      console.error("Bluetooth Test Error:", error);
-      let errorMessage = "Failed to select or interact with Bluetooth device.";
+      console.error("Bluetooth Print Error:", error);
+      let errorMessage = `Failed: ${error.message || "Unknown error"}`;
       if (error.name === 'NotFoundError') {
-        errorMessage = "No Bluetooth devices found or selected. Ensure Bluetooth is on and device is discoverable.";
+        errorMessage = "No Bluetooth devices found/selected or operation cancelled.";
       } else if (error.name === 'NotAllowedError') {
-        errorMessage = "Bluetooth access denied. Please allow Bluetooth permissions for this site.";
-      } else {
-        errorMessage = error.message || errorMessage;
+        errorMessage = "Bluetooth access denied by user or browser policy.";
+      } else if (error.name === 'SecurityError') {
+        errorMessage = "Bluetooth connection failed (Security). Ensure page is HTTPS.";
+      } else if (error.message && error.message.includes("GATT operation already in progress")) {
+        errorMessage = "GATT operation already in progress. Please wait.";
       }
-      toast({ title: "Bluetooth Test Error", description: errorMessage, variant: "destructive" });
+      toast({ title: "Bluetooth Print Error", description: errorMessage, variant: "destructive", duration: 7000 });
+    } finally {
+      if (device && device.gatt && device.gatt.connected) {
+        try {
+          // device.gatt.disconnect(); // Disconnect commented out as some printers prefer to stay connected
+          // console.log("Disconnected from GATT Server.");
+        } catch (disconnectError) {
+          console.error("Error disconnecting from GATT:", disconnectError);
+        }
+      }
+      setIsBluetoothPrinting(false);
     }
   };
 
@@ -223,17 +322,18 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         </ScrollArea>
         <DialogFooter className="sm:justify-between gap-2 flex-wrap"> 
             <div className="flex gap-2">
-                <Button variant="outline" onClick={handleCopy} size="sm">
+                <Button variant="outline" onClick={handleCopy} size="sm" disabled={isBluetoothPrinting}>
                     <Copy className="mr-2 h-4 w-4" /> Copy
                 </Button>
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" onClick={onClose} size="sm">Close</Button>
-                <Button onClick={handleBluetoothPrint} size="sm" variant="outline">
-                    <Bluetooth className="mr-2 h-4 w-4" /> Bluetooth Test
+                <Button variant="outline" onClick={onClose} size="sm" disabled={isBluetoothPrinting}>Close</Button>
+                <Button onClick={handleBluetoothPrint} size="sm" variant="default" disabled={isBluetoothPrinting}>
+                    {isBluetoothPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bluetooth className="mr-2 h-4 w-4" />}
+                    {isBluetoothPrinting ? "Processing..." : "Bluetooth Print"}
                 </Button>
-                <Button onClick={handleStandardPrint} size="sm">
-                    <Printer className="mr-2 h-4 w-4" /> Print
+                <Button onClick={handleStandardPrint} size="sm" disabled={isBluetoothPrinting}>
+                    <Printer className="mr-2 h-4 w-4" /> Print (Standard)
                 </Button>
             </div>
         </DialogFooter>
