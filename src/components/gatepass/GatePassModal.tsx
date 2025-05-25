@@ -170,6 +170,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
 
     try {
       device = await navigator.bluetooth.requestDevice({
+        // For development, acceptAllDevices can be true. 
+        // For production, filter by known printer names or specific service UUIDs.
+        // e.g., filters: [{ namePrefix: 'ATPOS' }, { services: ['your-printer-service-uuid'] }]
         acceptAllDevices: true, 
       });
 
@@ -194,8 +197,14 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       server = await device.gatt.connect(); 
       toast({ title: "Bluetooth Printing", description: "Connected to GATT Server! Discovering services..." });
 
-      const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; 
-      const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; 
+      // CRITICAL: YOU MUST REPLACE THESE PLACEHOLDER UUIDs WITH THE ACTUAL UUIDs
+      // FOR YOUR Atpos AT-402 PRINTER.
+      // Find these in your printer's technical/programming documentation.
+      // The error "Invalid Service name: '0000xxxx-0000-1000-8000-00805f9b34fb'"
+      // is because the 'xxxx' placeholder is still being used.
+      // Common print service UUID is '000018f0-0000-1000-8000-00805f9b34fb' but verify for your model.
+      const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // <<< REPLACE THIS WITH ACTUAL SERVICE UUID
+      const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<< REPLACE THIS WITH ACTUAL CHARACTERISTIC UUID
 
       toast({ title: "Bluetooth Printing", description: `Attempting to get service: ${PRINTER_SERVICE_UUID}`});
       const primaryService = await server.getPrimaryService(PRINTER_SERVICE_UUID);
@@ -203,6 +212,8 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       const characteristic = await primaryService.getCharacteristic(PRINTER_CHARACTERISTIC_UUID);
       toast({ title: "Bluetooth Printing", description: `Characteristic found! Preparing to send data...`});
 
+      // --- Construct ESC/POS Commands ---
+      // This part is highly printer-specific. You need your printer's ESC/POS command manual.
       const encoder = new TextEncoder(); 
       let escPosCommands = new Uint8Array();
       const appendBytes = (newBytes: Uint8Array) => {
@@ -212,18 +223,30 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         escPosCommands = combined;
       };
       
-      appendBytes(new Uint8Array([0x1B, 0x40]));
+      // 1. Initialize printer
+      appendBytes(new Uint8Array([0x1B, 0x40])); // ESC @ - Initialize printer
+
+      // 2. Send text content (line by line)
       gatePassContent.split('\\n').forEach(line => {
         appendBytes(encoder.encode(line));
-        appendBytes(new Uint8Array([0x0A])); 
+        appendBytes(new Uint8Array([0x0A])); // LF - Line Feed
       });
-      appendBytes(new Uint8Array([0x0A])); 
+      appendBytes(new Uint8Array([0x0A])); // Extra line feed
 
-      appendBytes(encoder.encode("\n[ESC/POS QR Print for Atpos AT-402]\n"));
+      // 3. Print QR Code (This is VERY printer-specific)
+      // Example: If printer supports GS ( k <Function 180> for QR code
+      // You'd need to format qrCodeData according to your printer's command structure
+      // appendBytes(new Uint8Array([0x1D, 0x28, 0x6B, ...parameters for QR code and qrCodeData...]));
+      // For now, let's just print the QR data as text as a placeholder.
+      appendBytes(encoder.encode("\n[ESC/POS QR Code Placeholder]\n"));
       appendBytes(encoder.encode(`Data: ${qrCodeData}\n`));
-      appendBytes(new Uint8Array([0x0A, 0x0A]));
+      appendBytes(new Uint8Array([0x0A, 0x0A])); // Extra line feeds
 
-      appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); 
+      // 4. Cut paper (if supported)
+      appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); // GS V B 0 - Partial cut (common)
+      // appendBytes(new Uint8Array([0x1D, 0x56, 0x00])); // GS V 0 - Full cut
+
+      // --- End Construct ESC/POS Commands ---
       
       console.log("Prepared ESC/POS Commands (Hex):", Array.from(escPosCommands).map(b => b.toString(16).padStart(2, '0')).join(' '));
       
@@ -235,9 +258,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       console.error("Bluetooth Print Error:", error);
       let errorMessage = `Failed: ${error.message || "Unknown error"}`;
       if (error.name === 'NotFoundError' && error.message.includes("getPrimaryService")) {
-        errorMessage = `Service UUID Error: Could not find '${PRINTER_SERVICE_UUID}' on device. Check printer docs for correct Service UUID. Printer: ${device?.name || 'Unknown'}.`;
+        errorMessage = `Service UUID Error: Could not find '${PRINTER_SERVICE_UUID}' on device. Check printer docs for correct Service UUID and ensure you've replaced the 'xxxx' placeholder. Printer: ${device?.name || 'Unknown'}.`;
       } else if (error.name === 'NotFoundError' && error.message.includes("getCharacteristic")) {
-        errorMessage = `Characteristic UUID Error: Could not find '${PRINTER_CHARACTERISTIC_UUID}' on service. Check printer docs for correct Characteristic UUID. Printer: ${device?.name || 'Unknown'}.`;
+        errorMessage = `Characteristic UUID Error: Could not find '${PRINTER_CHARACTERISTIC_UUID}' on service. Check printer docs for correct Characteristic UUID and ensure you've replaced the 'yyyy' placeholder. Printer: ${device?.name || 'Unknown'}.`;
       } else if (error.name === 'NotFoundError') {
         errorMessage = "Device Selection Error: No Bluetooth devices found/selected or operation cancelled. Ensure printer is on, discoverable, and in range.";
       } else if (error.name === 'NotAllowedError') {
@@ -250,10 +273,13 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         errorMessage = "User Action: Device selection cancelled.";
       } else if (error.message && (error.message.toLowerCase().includes("connection attempt failed") || error.message.toLowerCase().includes("gatt server disconnected"))) {
         errorMessage = "Connection Error: Failed to connect to the printer. Ensure printer is ON, in range, paired (if required by printer), and not connected to another app/device. It might also be a Bluetooth Classic (SPP) device not fully compatible with Web Bluetooth's GATT connection. Try restarting the printer and Bluetooth on your computer/tablet.";
+      } else if (error.message && error.message.toLowerCase().includes("invalid service name")) {
+         errorMessage = `Invalid Service UUID: '${PRINTER_SERVICE_UUID}' is not valid. YOU MUST REPLACE the 'xxxx' placeholder with the correct Service UUID from your printer's documentation.`;
       }
       toast({ title: "Bluetooth Print Error", description: errorMessage, variant: "destructive", duration: 15000 });
     } finally {
       if (device && device.gatt && device.gatt.connected) {
+        // It's often good to disconnect, but for some printers, keeping it connected for subsequent prints might be desired.
         // device.gatt.disconnect();
         // console.log("Disconnected from GATT Server.");
       }
