@@ -32,9 +32,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
 
   const handleStandardPrint = () => {
     toast({
-      title: "Print Dialog Open",
-      description: "Check printer settings (Paper Size: 80mm, Scale: 100%, Margins: None). Works with USB/system Bluetooth printers.",
-      duration: 7000,
+      title: "Opening Print Dialog...",
+      description: "Please check printer settings in the upcoming dialog (Paper Size: 80mm Roll, Scale: 100%, Margins: None/Minimal). This works with USB/system Bluetooth printers.",
+      duration: 10000, // Increased duration
     });
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -72,32 +72,33 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         '    margin: 2mm; ' + 
         '  }' +
         '  body { ' +
-        '    font-family: "Courier New", Courier, monospace; ' + // Monospace for better text alignment
+        '    font-family: Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console", "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier, monospace; ' + // Broader monospace font stack
         '    white-space: pre-wrap; ' + 
         '    margin: 0; ' +
         '    padding: 0; ' +
-        '    font-size: 10pt; ' + 
-        '    line-height: 1.15; ' +
-        '    width: 76mm; ' + // 80mm - 2mm margin each side
+        '    font-size: 11pt; ' + // Slightly increased font size
+        '    line-height: 1.2; ' + // Adjusted line height
+        '    width: 76mm; ' + 
         '    box-sizing: border-box;' +
+        '    text-rendering: optimizeLegibility;' + // Text rendering hint
         '  }' +
         '  .content-wrapper {' +
         '    width: 100%;' +
         '    box-sizing: border-box;' +
         '  }' +
-        '  .pass-line {' + // Applied to each line for monospace and pre-wrap behavior
+        '  .pass-line {' +
         '    margin:0; ' +
         '    padding:0; ' +
-        '    font-family: "Courier New", Courier, monospace;' + 
-        '    font-size: 10pt;' +
-        '    line-height: 1.15;' +
-        '    white-space: pre; ' + // preserve spaces and line breaks from original content
-        '    word-wrap: normal; ' + // try to avoid breaking words if possible with pre
-        '    overflow-wrap: break-word; ' + // break word if it still overflows
+        '    font-family: Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console", "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier, monospace; ' + // Ensure pass lines also use this font stack
+        '    font-size: 11pt;' + // Consistent font size
+        '    line-height: 1.2;' +
+        '    white-space: pre; ' + 
+        '    word-wrap: normal; ' + 
+        '    overflow-wrap: break-word; ' + 
         '    box-sizing: border-box;' +
-        '    width: 100%;' + // Ensure lines try to use full available width before wrapping
+        '    width: 100%;' + 
         '  }' +
-        '  .shop-name-line {' + // Class for bolding shop name
+        '  .shop-name-line {' +
         '    font-weight: bold;' +
         '  }' +
         '  .qr-code-container { ' +
@@ -106,23 +107,21 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         '    page-break-inside: avoid; ' + 
         '  } ' +
         '  .qr-code-container img { ' +
-        '    max-width: 35mm; ' + 
-        '    max-height: 35mm;' +
-        '    display: block;' + // For centering
-        '    margin-left: auto;' + // For centering
-        '    margin-right: auto;' + // For centering
+        '    max-width: 40mm; ' + // Slightly increased max-width for QR
+        '    max-height: 40mm;' +
+        '    display: block;' + 
+        '    margin-left: auto;' + 
+        '    margin-right: auto;' + 
         '  }' +
-        '  .no-print { display: none; }' + // For elements not to be printed
+        '  .no-print { display: none; }' + 
         '</style>'
       );
       printWindow.document.write('</head><body>');
       
-      // Instead of one pre, write each line in its own styled div
       printWindow.document.write('<div class="content-wrapper">');
       
-      const lines = gatePassContent.split('\\n'); // Assuming \\n is your newline in generatedPassContent
+      const lines = gatePassContent.split('\\n'); 
       lines.forEach(line => {
-        // Sanitize line for HTML
         const sanitizedLine = line
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
@@ -130,7 +129,6 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
-        // Check if this line is the shop name to be bolded
         const isShopNameLine = shopNameToBold && sanitizedLine.trim().toUpperCase() === shopNameToBold.trim().toUpperCase();
         
         if (isShopNameLine) {
@@ -140,7 +138,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         }
       });
 
-      printWindow.document.write('</div>'); // Close content-wrapper
+      printWindow.document.write('</div>'); 
       
       if (qrImageForPrint) {
         printWindow.document.write('<div class="qr-code-container"><img src="' + qrImageForPrint + '" alt="QR Code for ' + qrCodeData.substring(0,15) + '..." /></div>');
@@ -148,14 +146,12 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
          printWindow.document.write('<div class="qr-code-container"><p style="font-size: 8pt;">[QR Code for Pass ID: ' + qrCodeData.substring(0,15) + '... Image generation failed]</p></div>');
       }
       printWindow.document.write('</body></html>');
-      printWindow.document.close(); // Important for some browsers
+      printWindow.document.close(); 
       
-      // Give browser time to render images/canvas in the new window
       setTimeout(() => {
-        printWindow.focus(); // Focus the new window/tab
+        printWindow.focus(); 
         printWindow.print();
-        // printWindow.close(); // Optionally close after print dialog
-      }, 250); // Increased delay slightly
+      }, 500); // Increased delay slightly more
 
     } else {
         toast({ title: "Print Error", description: "Could not open print window. Check browser pop-up settings.", variant: "destructive"});
@@ -183,22 +179,21 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
     let device: BluetoothDevice | null = null;
     let server: BluetoothRemoteGATTServer | undefined = undefined;
 
-    // CRITICAL: THE UUIDs أدناه ARE PLACEHOLDERS.
+    // CRITICAL: THE UUIDs BELOW ARE PLACEHOLDERS.
     // You MUST find the correct GATT Service and Characteristic UUIDs for *your specific printer model*
     // from its technical/programming documentation if it supports BLE/GATT for printing.
     // The standard SPP UUID ('00001101-...') is for Bluetooth Classic and will NOT work here if the printer doesn't bridge it to a GATT service.
-    // If your printer is Bluetooth Classic SPP *only*, Web Bluetooth cannot directly print to it via GATT.
     // The error "No Services matching UUID 00001101-..." confirmed the standard SPP UUID wasn't found as a GATT service.
     // You need the *actual GATT service UUID* for printing on your Atpos AT-402, if it provides one.
-    const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE 'xxxx' (Service) WITH ACTUAL ATPO AT-402 GATT PRINT SERVICE UUID IF AVAILABLE !!!>>>
-    const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE 'yyyy' (Characteristic) WITH ACTUAL ATPO AT-402 GATT PRINT CHARACTERISTIC UUID IF AVAILABLE !!!>>>
+    const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE 'xxxx' (Service) WITH ACTUAL Atpos AT-402 GATT PRINT SERVICE UUID IF AVAILABLE !!!>>>
+    const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE 'yyyy' (Characteristic) WITH ACTUAL Atpos AT-402 GATT PRINT CHARACTERISTIC UUID IF AVAILABLE !!!>>>
 
     try {
       console.log('Requesting Bluetooth device with acceptAllDevices: true');
       device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true, 
         // If you find the correct PRINTER_SERVICE_UUID for your printer, add it here:
-        // optionalServices: [PRINTER_SERVICE_UUID], // e.g., '000018f0-0000-1000-8000-00805f9b34fb' for a standard print service
+        // optionalServices: [PRINTER_SERVICE_UUID], // e.g., '000018f0-0000-1000-8000-00805f9b34fb' for a standard print service. Or '00001101-0000-1000-8000-00805f9b34fb' for SPP if GATT-wrapped.
       });
       
       if (!device) {
@@ -248,7 +243,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       appendBytes(new Uint8Array([0x1B, 0x40])); 
       
       // Convert gate pass content to bytes (replace \n with printer's newline command if different, e.g., LF is 0x0A)
-      const textToPrint = gatePassContent.replace(/\\n/g, '\n'); // Ensure newlines are actual \n for TextEncoder
+      const textToPrint = gatePassContent.replace(/\\n/g, '\n'); 
       appendBytes(encoder.encode(textToPrint));
       appendBytes(new Uint8Array([0x0A])); // Line feed
 
@@ -270,16 +265,16 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       
       // Actually send the data
       // Make sure you have replaced placeholders for UUIDs and ESC/POS commands
-      // await characteristic.writeValueWithResponse(escPosCommands); // UNCOMMENT THIS LINE TO SEND
+      await characteristic.writeValueWithResponse(escPosCommands); 
       
-      console.log("Simulated send complete. Actual sending is commented out. Replace UUIDs and ESC/POS commands first.");
-      toast({ title: "Bluetooth Ready (Simulated Send)", description: `Data for "${device.name || device.id}" prepared. Actual sending is commented out. Replace UUIDs and ESC/POS commands.` });
+      console.log("Data sent to printer.");
+      toast({ title: "Print Data Sent", description: `Data sent to "${device.name || device.id}". Check printer.` });
       
     } catch (error: any) {
       console.error("Bluetooth Print Error:", error);
       let errorMessage = `Failed: ${error.message || "Unknown error"}`;
        if (error.name === 'NotFoundError' && error.message.includes("getPrimaryService")) {
-        errorMessage = `Service UUID Error: Could not find service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. This means the Service UUID placeholder ('xxxx') IS STILL INCORRECT or the printer does not expose this service via GATT. The standard SPP UUID (00001101-...) did not work. YOU MUST REPLACE 'xxxx' with the correct Service UUID from your Atpos AT-402 printer's technical documentation for BLE/GATT printing, if supported.`;
+        errorMessage = `Service UUID Error: Could not find service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. This means the Service UUID placeholder ('xxxx') IS STILL INCORRECT or the printer does not expose this service via GATT. The standard SPP UUID (00001101-...) did not work previously. YOU MUST REPLACE 'xxxx' with the correct Service UUID from your Atpos AT-402 printer's technical documentation for BLE/GATT printing, if supported.`;
       } else if (error.name === 'NotFoundError' && error.message.includes("getCharacteristic")) {
         errorMessage = `Characteristic UUID Error: Could not find characteristic '${PRINTER_CHARACTERISTIC_UUID}' (the one with 'yyyy') for service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. YOU MUST REPLACE THE 'yyyy' PLACEHOLDER with the correct Characteristic UUID from your Atpos AT-402 printer's technical documentation for the specified BLE/GATT service.`;
       } else if (error.name === 'NotFoundError') {
@@ -328,7 +323,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         toast({ title: "Shared!", description: "Gate pass content shared."});
       } catch (error: any) {
         console.error('Error sharing:', error);
-        if (error.name !== 'AbortError') { // Don't show error if user cancelled share
+        if (error.name !== 'AbortError') { 
           toast({ title: "Share Failed", description: error.message || "Could not share content.", variant: "destructive"});
         }
       }
@@ -347,7 +342,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-[400px] w-full rounded-md border p-4 my-4">
-          <pre className="text-sm font-mono whitespace-pre-wrap break-all">
+          <pre className="text-sm whitespace-pre-wrap break-all" style={{fontFamily: 'Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console", "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier, monospace', fontSize: '11pt', lineHeight: '1.2'}}>
             {gatePassContent.replace(/\\n/g, '\n')}
           </pre>
           {qrCodeData && (
