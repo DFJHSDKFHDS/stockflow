@@ -72,7 +72,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         '    margin: 2mm; ' + 
         '  }' +
         '  body { ' +
-        '    font-family: \'Courier New\', Courier, monospace; ' + 
+        '    font-family: "Courier New", Courier, monospace; ' + // Ensured monospace font
         '    white-space: pre-wrap; ' + 
         '    margin: 0; ' +
         '    padding: 0; ' +
@@ -88,15 +88,16 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         '  .pass-line {' +
         '    margin:0; ' +
         '    padding:0; ' +
-        '    font-family: \'Courier New\', Courier, monospace;' + // Ensure monospace for pre-like behavior
+        '    font-family: "Courier New", Courier, monospace;' +
         '    font-size: 10pt;' +
         '    line-height: 1.15;' +
-        '    white-space: pre; ' + // Crucial for preserving spaces and line breaks from generatePlainTextGatePass
-        '    word-wrap: break-word; ' + // Should not be needed if generatePlainTextGatePass handles wrapping
+        '    white-space: pre; ' + 
+        '    word-wrap: normal; ' + // Use normal, rely on pre for wrapping
+        '    overflow-wrap: break-word; ' + // For safety, but pre should handle
         '    box-sizing: border-box;' +
         '    width: 100%;' +
         '  }' +
-        '  .shop-name-line {' + // Class for bolding shop name
+        '  .shop-name-line {' + 
         '    font-weight: bold;' +
         '  }' +
         '  .qr-code-container { ' +
@@ -118,10 +119,8 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       
       printWindow.document.write('<div class="content-wrapper">');
       
-      // Split content and apply bolding if shopNameToBold matches
       const lines = gatePassContent.split('\\n');
       lines.forEach(line => {
-        // Sanitize HTML characters
         const sanitizedLine = line
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
@@ -129,7 +128,6 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
-        // Check if this line is the shop name to be bolded
         const isShopNameLine = shopNameToBold && sanitizedLine.trim().toUpperCase() === shopNameToBold.trim().toUpperCase();
         
         if (isShopNameLine) {
@@ -139,7 +137,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         }
       });
 
-      printWindow.document.write('</div>'); // Close content-wrapper
+      printWindow.document.write('</div>'); 
       
       if (qrImageForPrint) {
         printWindow.document.write('<div class="qr-code-container"><img src="' + qrImageForPrint + '" alt="QR Code for ' + qrCodeData.substring(0,15) + '..." /></div>');
@@ -149,11 +147,9 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       printWindow.document.write('</body></html>');
       printWindow.document.close(); 
       
-      // Give the browser a moment to render the content before printing
       setTimeout(() => {
-        printWindow.focus(); // Ensure the print window is focused
+        printWindow.focus(); 
         printWindow.print();
-        // printWindow.close(); // Optional: close after printing
       }, 250); 
 
     } else {
@@ -172,12 +168,22 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
     let device: BluetoothDevice | null = null;
     let server: BluetoothRemoteGATTServer | undefined = undefined;
 
+    // ======================================================================
+    // CRITICAL: YOU MUST REPLACE THE CHARACTERISTIC UUID BELOW if SPP doesn't work.
+    // The Service UUID is now set to the standard SPP UUID as a trial.
+    // Find these in your ATPOS AT-402 PRINTER'S TECHNICAL/PROGRAMMING DOCUMENTATION.
+    // ======================================================================
+    const PRINTER_SERVICE_UUID = '00001101-0000-1000-8000-00805f9b34fb'; // Standard SPP Service UUID - TRYING THIS
+    const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<<!!! YOU MUST STILL REPLACE THIS 'yyyy' PLACEHOLDER !!!>>>
+    // ======================================================================
+
     try {
       device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true, // For wider discovery during testing. 
-        // Consider filtering for production if a name prefix or specific service is known for AT-402.
-        // Example (if your printer advertises the standard SPP service):
-        // filters: [{ services: ['00001101-0000-1000-8000-00805f9b34fb'] }],
+        acceptAllDevices: true, 
+        // If acceptAllDevices: true doesn't work, try filtering by the service:
+        // filters: [{ services: [PRINTER_SERVICE_UUID] }],
+        // According to the error message, we need to declare the service UUID here:
+        optionalServices: [PRINTER_SERVICE_UUID], 
       });
 
       if (!device) {
@@ -200,26 +206,13 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       
       server = await device.gatt.connect(); 
       toast({ title: "Bluetooth Printing", description: "Connected to GATT Server! Discovering services..." });
-
-      // ======================================================================
-      // CRITICAL: YOU MUST REPLACE THE CHARACTERISTIC UUID BELOW.
-      // The Service UUID is now set to the standard SPP UUID as a trial.
-      // You STILL need to find the correct Characteristic UUID for writing print data.
-      // Find these in your ATPOS AT-402 PRINTER'S TECHNICAL/PROGRAMMING DOCUMENTATION.
-      // ======================================================================
-      const PRINTER_SERVICE_UUID = '00001101-0000-1000-8000-00805f9b34fb'; // Standard SPP Service UUID - TRYING THIS
-      const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<<!!! YOU MUST STILL REPLACE THIS 'yyyy' PLACEHOLDER !!!>>>
-      // ======================================================================
-
-
+      
       toast({ title: "Bluetooth Printing", description: `Attempting to get service: ${PRINTER_SERVICE_UUID}`});
       const primaryService = await server.getPrimaryService(PRINTER_SERVICE_UUID);
       toast({ title: "Bluetooth Printing", description: `Service found! Attempting to get characteristic: ${PRINTER_CHARACTERISTIC_UUID}`});
       const characteristic = await primaryService.getCharacteristic(PRINTER_CHARACTERISTIC_UUID);
       toast({ title: "Bluetooth Printing", description: `Characteristic found! Preparing to send data...`});
 
-      // --- Construct ESC/POS Commands ---
-      // This part is highly printer-specific. You need your printer's ESC/POS command manual.
       const encoder = new TextEncoder(); 
       let escPosCommands = new Uint8Array();
       const appendBytes = (newBytes: Uint8Array) => {
@@ -229,43 +222,21 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         escPosCommands = combined;
       };
       
-      // 1. Initialize printer
-      appendBytes(new Uint8Array([0x1B, 0x40])); // ESC @ - Initialize printer
-
-      // 2. Send text content (line by line)
-      // Ensure gatePassContent already has \n for new lines from generatePlainTextGatePass
-      // If generatePlainTextGatePass uses '\n' for newlines, use that directly.
-      // If it uses '\\n' (escaped newline for display in <pre>), you might need to replace '\\n' with '\n' here.
-      // Assuming generatePlainTextGatePass provides text with actual '\n' for printers.
-      const textToPrint = gatePassContent.replace(/\\n/g, '\n'); // Ensure actual newlines
+      appendBytes(new Uint8Array([0x1B, 0x40])); 
+      const textToPrint = gatePassContent.replace(/\\n/g, '\n'); 
       appendBytes(encoder.encode(textToPrint));
-      appendBytes(new Uint8Array([0x0A])); // Ensure a final Line Feed
+      appendBytes(new Uint8Array([0x0A])); 
 
-      // 3. Print QR Code (This is VERY printer-specific)
-      // Many printers have an ESC/POS command to print a QR code given the data.
-      // Example: GS ( k <Function 180> for QR code
-      // You'd need to format qrCodeData according to your printer's command structure.
-      // This is a conceptual placeholder. Consult your AT-402 manual.
-      // Example structure (syntax and parameters will vary greatly):
-      // const qrDataBytes = encoder.encode(qrCodeData);
-      // const qrHeader = new Uint8Array([0x1D, 0x28, 0x6B, /* params for size, error correction, etc. */, qrDataBytes.length & 0xFF, (qrDataBytes.length >> 8) & 0xFF]);
-      // appendBytes(qrHeader);
-      // appendBytes(qrDataBytes);
-      // For now, just print the QR data as text as a fallback if direct QR printing is complex:
       appendBytes(encoder.encode("\n[QR Code Data (Text)]\n"));
       appendBytes(encoder.encode(`ID: ${qrCodeData}\n`));
-      appendBytes(new Uint8Array([0x0A, 0x0A])); // Extra line feeds
+      appendBytes(new Uint8Array([0x0A, 0x0A])); 
 
-      // 4. Cut paper (if supported) - Check AT-402 manual for correct command
-      // Common: GS V B 0 (partial cut) or GS V 0 (full cut)
-      appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); // Example: Partial cut
-      // appendBytes(new Uint8Array([0x1D, 0x56, 0x00])); // Example: Full cut
-
-      // --- End Construct ESC/POS Commands ---
+      appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); 
       
       console.log("Prepared ESC/POS Commands (Hex):", Array.from(escPosCommands).map(b => b.toString(16).padStart(2, '0')).join(' '));
       console.log("Attempting to send to characteristic:", characteristic.uuid);
       
+      // The actual sending of commands
       await characteristic.writeValueWithResponse(escPosCommands);
       
       toast({ title: "Bluetooth Printing Successful", description: `Data sent to "${device.name || device.id}"!` });
@@ -274,13 +245,13 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       console.error("Bluetooth Print Error:", error);
       let errorMessage = `Failed: ${error.message || "Unknown error"}`;
       if (error.name === 'NotFoundError' && error.message.includes("getPrimaryService")) {
-        errorMessage = `Service UUID Error: Could not find '${PRINTER_SERVICE_UUID}' on device. This means the SPP UUID might not be the correct one, or the printer isn't advertising it as expected. Check printer docs. Printer: ${device?.name || 'Unknown'}.`;
+        errorMessage = `Service UUID Error: Could not find '${PRINTER_SERVICE_UUID}' on device. This means the SPP UUID might not be the correct one for GATT access, or the printer isn't advertising it as expected, or it was not declared in optionalServices. Check printer docs. Printer: ${device?.name || 'Unknown'}.`;
       } else if (error.name === 'NotFoundError' && error.message.includes("getCharacteristic")) {
-        errorMessage = `Characteristic UUID Error: Could not find '${PRINTER_CHARACTERISTIC_UUID}' (the one with 'yyyy'). YOU MUST REPLACE THE 'yyyy' PLACEHOLDER with the correct Characteristic UUID from your Atpos AT-402 printer's technical documentation for the SPP service. Printer: ${device?.name || 'Unknown'}.`;
+        errorMessage = `Characteristic UUID Error: Could not find characteristic '${PRINTER_CHARACTERISTIC_UUID}' (the one with 'yyyy'). YOU MUST REPLACE THE 'yyyy' PLACEHOLDER with the correct Characteristic UUID from your Atpos AT-402 printer's technical documentation for the SPP service. Printer: ${device?.name || 'Unknown'}.`;
       } else if (error.name === 'NotFoundError') {
         errorMessage = "Device Selection Error: No Bluetooth devices found/selected or operation cancelled. Ensure printer is on, discoverable, and in range.";
       } else if (error.name === 'NotAllowedError') {
-        errorMessage = "Permission Error: Bluetooth access denied by user or browser policy. Ensure permissions are granted.";
+        errorMessage = "Permission Error: Bluetooth access denied by user or browser policy. Ensure permissions are granted and that the service UUID was included in 'optionalServices' during device request if not using acceptAllDevices with a specific filter.";
       } else if (error.name === 'SecurityError') {
         errorMessage = "Security Error: Bluetooth connection failed. Ensure page is HTTPS.";
       } else if (error.message && error.message.includes("GATT operation already in progress")) {
@@ -288,14 +259,16 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       } else if (error.message && error.message.toLowerCase().includes("user cancelled")) {
         errorMessage = "User Action: Device selection cancelled.";
       } else if (error.message && (error.message.toLowerCase().includes("connection attempt failed") || error.message.toLowerCase().includes("gatt server disconnected"))) {
-        errorMessage = `Connection Error: Failed to connect to "${device?.name || 'the printer'}". Ensure printer is ON, in range, paired (if required by printer), and not connected to another app/device. It might also be a Bluetooth Classic (SPP) device not fully compatible with Web Bluetooth's GATT connection. Try restarting the printer and Bluetooth on your computer/tablet.`;
+         errorMessage = `Connection Error: Failed to connect to "${device?.name || 'the printer'}". Ensure printer is ON, in range, paired (if required by printer), and not connected to another app/device. It might also be a Bluetooth Classic (SPP) device not fully compatible with Web Bluetooth's GATT connection. Try restarting the printer and Bluetooth on your computer/tablet.`;
       } else if (error.message && error.message.toLowerCase().includes("invalid service name")) {
-         errorMessage = `Invalid Service UUID: '${PRINTER_SERVICE_UUID}' still seems to be incorrect or the printer is not exposing it. YOU MUST REPLACE the 'xxxx' (or current value) with the correct Service UUID from your ATPOS AT-402 printer's technical documentation.`;
+         errorMessage = `Invalid Service UUID in getPrimaryService: '${PRINTER_SERVICE_UUID}' still seems to be incorrect or the printer is not exposing it. YOU MUST REPLACE the value with the correct Service UUID from your ATPOS AT-402 printer's technical documentation.`;
+      } else if (error.message && error.message.toLowerCase().includes("origin is not allowed to access any service")) {
+        errorMessage = `Permission Error: Origin not allowed to access service. Ensure the service UUID ('${PRINTER_SERVICE_UUID}') is included in 'optionalServices' in the requestDevice() options.`;
       }
       toast({ title: "Bluetooth Print Error", description: errorMessage, variant: "destructive", duration: 15000 });
     } finally {
       if (device && device.gatt && device.gatt.connected) {
-        // device.gatt.disconnect(); // Consider if you want to disconnect or keep it open for subsequent prints
+        // device.gatt.disconnect(); // Consider if you want to disconnect
         // console.log("Disconnected from GATT Server.");
       }
       setIsBluetoothPrinting(false);
@@ -350,4 +323,3 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
     </Dialog>
   );
 }
-
