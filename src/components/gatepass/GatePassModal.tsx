@@ -91,7 +91,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         '    font-family: \'Courier New\', Courier, monospace;' +
         '    font-size: 10pt;' +
         '    line-height: 1.15;' +
-        '    white-space: pre; ' +
+        '    white-space: pre; ' + /* Use pre for explicit line breaks from content */
         '    word-wrap: break-word; ' + 
         '    box-sizing: border-box;' +
         '    width: 100%;' +
@@ -100,7 +100,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         '    font-weight: bold;' +
         '  }' +
         '  .qr-code-container { ' +
-        '    margin-top: 5mm; ' +
+        '    margin-top: 5mm; ' + 
         '    text-align: center; ' +
         '    page-break-inside: avoid; ' + 
         '  } ' +
@@ -118,7 +118,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       
       printWindow.document.write('<div class="content-wrapper">');
       
-      const lines = gatePassContent.split('\\n');
+      const lines = gatePassContent.split('\\n'); // Assuming your plain text uses \n for newlines
       lines.forEach(line => {
         const sanitizedLine = line
           .replace(/&/g, "&amp;")
@@ -127,6 +127,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
+        // Check if the current line is the shop name to be bolded
         const isShopNameLine = shopNameToBold && sanitizedLine.trim().toUpperCase() === shopNameToBold.trim().toUpperCase();
         
         if (isShopNameLine) {
@@ -170,10 +171,10 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
 
     try {
       device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true, // For testing. For production, filter by name or service UUID.
-        // Example filters (replace with your printer's actual details):
-        // filters: [{ namePrefix: 'ATPOS' }], 
-        // optionalServices: ['your_printer_service_uuid_here'] // UUID for the printer service
+        acceptAllDevices: true, // For development. For production, filter by name or service UUID.
+        // Example filters (replace with your printer's actual details if known):
+        // filters: [{ namePrefix: 'ATPOS' }, { services: ['YOUR_PRINTER_SERVICE_UUID_HERE'] }], 
+        // optionalServices: ['YOUR_PRINTER_SERVICE_UUID_HERE'] 
       });
 
       if (!device) {
@@ -192,11 +193,19 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       server = await device.gatt.connect();
       toast({ title: "Bluetooth Printing", description: "Connected! Discovering services..." });
 
-      // TODO: IMPORTANT - Replace with your Atpos AT-402 printer's actual Service and Characteristic UUIDs.
-      // These are placeholders and are very unlikely to work.
-      // You MUST find these in your printer's technical documentation.
-      const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // EXAMPLE: e.g., Serial Port Profile or custom printer service
-      const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // EXAMPLE: Characteristic for writing print data
+      // =====================================================================================
+      // CRITICAL: YOU MUST REPLACE THESE PLACEHOLDER UUIDs WITH THE ACTUAL UUIDs
+      // FOR YOUR Atpos AT-402 PRINTER.
+      // Find these in your printer's technical/programming documentation.
+      // The error "Invalid Service name: '0000xxxx-0000-1000-8000-00805f9b34fb'"
+      // is because the 'xxxx' placeholder is still being used.
+      // Common standard UUIDs for Serial Port Profile (SPP) (often used by Bluetooth printers,
+      // but Web Bluetooth works best with BLE GATT services):
+      //   Service: 00001101-0000-1000-8000-00805f9b34fb
+      // However, your printer might use a custom BLE service for printing.
+      // =====================================================================================
+      const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // <<< REPLACE THIS
+      const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<< REPLACE THIS
 
       // Attempt to get the primary service and characteristic.
       // If these UUIDs are incorrect, the following lines will fail.
@@ -219,8 +228,6 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       appendBytes(new Uint8Array([0x1B, 0x40]));
 
       // 2. Add Gate Pass Text Content (line by line)
-      //    You might need specific ESC/POS commands for font size, bold, alignment here.
-      //    For now, sending plain text lines with LF.
       gatePassContent.split('\\n').forEach(line => {
         appendBytes(encoder.encode(line));
         appendBytes(new Uint8Array([0x0A])); // Line Feed (LF)
@@ -246,14 +253,11 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       // 4. Feed paper and Cut (GS V B 0 - partial cut, if supported and desired)
       //    Consult your printer manual for the correct cut command.
       appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); // Example: Partial cut
-      // Or just feed a few lines: ESC d n (n lines)
-      // appendBytes(new Uint8Array([0x1B, 0x64, 0x03])); // Feed 3 lines
       // --- End of ESC/POS command construction ---
+      
+      console.log("Prepared ESC/POS Commands (Hex):", Array.from(escPosCommands).map(b => b.toString(16).padStart(2, '0')).join(' '));
+      console.log("Attempting to send to characteristic:", characteristic.uuid);
 
-      // ***** ACTUAL SENDING OF DATA *****
-      // This is the crucial line to send the commands to the printer.
-      // It WILL FAIL if PRINTER_SERVICE_UUID, PRINTER_CHARACTERISTIC_UUID are incorrect,
-      // or if the characteristic does not support 'write' or 'writeWithoutResponse'.
       await characteristic.writeValueWithResponse(escPosCommands);
       // Or use writeValueWithoutResponse if your printer/characteristic prefers it:
       // await characteristic.writeValueWithoutResponse(escPosCommands);
@@ -263,7 +267,11 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
     } catch (error: any) {
       console.error("Bluetooth Print Error:", error);
       let errorMessage = `Failed: ${error.message || "Unknown error"}`;
-      if (error.name === 'NotFoundError') {
+      if (error.name === 'NotFoundError' && error.message.includes("getPrimaryService")) {
+        errorMessage = `Could not find the required service UUID ('${PRINTER_SERVICE_UUID}') on the device. Check your printer's documentation for the correct Service UUID for printing. Printer: ${device?.name}`;
+      } else if (error.name === 'NotFoundError' && error.message.includes("getCharacteristic")) {
+        errorMessage = `Could not find the required characteristic UUID ('${PRINTER_CHARACTERISTIC_UUID}') on the service. Check your printer's documentation for the correct Characteristic UUID for printing. Printer: ${device?.name}`;
+      } else if (error.name === 'NotFoundError') {
         errorMessage = "No Bluetooth devices found/selected or operation cancelled. Ensure printer is on and discoverable.";
       } else if (error.name === 'NotAllowedError') {
         errorMessage = "Bluetooth access denied by user or browser policy. Ensure permissions are granted.";
@@ -271,10 +279,6 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         errorMessage = "Bluetooth connection failed (Security). Ensure page is HTTPS.";
       } else if (error.message && error.message.includes("GATT operation already in progress")) {
         errorMessage = "GATT operation already in progress. Please wait.";
-      } else if (error.message && error.message.includes("getPrimaryService")) {
-        errorMessage = `Could not find the required service UUID ('${PRINTER_SERVICE_UUID}') on the device. Check your printer's documentation for the correct Service UUID for printing. Printer: ${device?.name}`;
-      } else if (error.message && error.message.includes("getCharacteristic")) {
-        errorMessage = `Could not find the required characteristic UUID ('${PRINTER_CHARACTERISTIC_UUID}') on the service. Check your printer's documentation for the correct Characteristic UUID for printing. Printer: ${device?.name}`;
       } else if (error.message && error.message.toLowerCase().includes("user cancelled")) {
         errorMessage = "Device selection cancelled by user.";
       }
@@ -307,11 +311,13 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-[400px] w-full rounded-md border p-4 my-4">
+          {/* Display pre-formatted text */}
           <pre className="text-sm font-mono whitespace-pre-wrap break-all">
             {gatePassContent}
           </pre>
           {qrCodeData && (
             <div className="mt-4 text-center">
+              {/* This QRCodeCanvas is for display in the modal and for the standard print function */}
               <QRCodeCanvas id={qrCanvasId} value={qrCodeData} size={150} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={false} style={{display: 'block', margin: '0 auto'}} />
               <p className="text-xs text-muted-foreground mt-1">QR Code (Data: {qrCodeData.substring(0,30)}...)</p>
             </div>
