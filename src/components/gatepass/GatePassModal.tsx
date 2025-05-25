@@ -33,8 +33,8 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
   const handleStandardPrint = () => {
     toast({
       title: "Print Dialog Open",
-      description: "Please check your printer settings (Paper Size: 80mm, Scale: 100%, Margins: None).",
-      duration: 7000, // Increased duration
+      description: "Please check your printer settings (Paper Size: 80mm, Scale: 100%, Margins: None). This method works best with USB or system-installed Bluetooth printers.",
+      duration: 7000,
     });
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -119,7 +119,7 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       
       printWindow.document.write('<div class="content-wrapper">');
       
-      const lines = gatePassContent.split('\\n');
+      const lines = gatePassContent.split('\\n'); // Use \\n as per generatePlainTextGatePass
       lines.forEach(line => {
         const sanitizedLine = line
           .replace(/&/g, "&amp;")
@@ -159,37 +159,43 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
 
   const handleBluetoothPrint = async () => {
     if (!navigator.bluetooth) {
-      toast({ title: "Web Bluetooth Not Supported", description: "Your browser does not support Web Bluetooth. Try Chrome/Edge on Desktop/Android.", variant: "destructive" });
+      toast({ 
+        title: "Web Bluetooth Not Supported", 
+        description: "Your browser does not support Web Bluetooth. Try Chrome/Edge on Desktop/Android. This feature requires a Bluetooth Low Energy (BLE/GATT) compatible printer.", 
+        variant: "destructive",
+        duration: 10000
+      });
       return;
     }
-    setIsBluetoothPrinting(true);
-    toast({ title: "Bluetooth Printing", description: "Searching for Bluetooth devices..." });
+    
+    toast({ 
+        title: "Bluetooth Print (Experimental)", 
+        description: "Attempting to find Bluetooth devices. This direct printing method requires a BLE/GATT compatible printer. Many POS thermal printers use Bluetooth Classic SPP and may not work with this method. Use 'Print (Standard)' for system-paired printers.",
+        duration: 10000 
+    });
 
+    setIsBluetoothPrinting(true);
     let device: BluetoothDevice | null = null;
     let server: BluetoothRemoteGATTServer | undefined = undefined;
 
     // ======================================================================
-    // CRITICAL: YOU MUST REPLACE THESE PLACEHOLDER UUIDs WITH THE ACTUAL UUIDs
-    // FOR YOUR Atpos AT-402 PRINTER.
-    // Find these in your printer's technical/programming documentation.
-    // The error "No Services matching UUID 00001101-..." indicated the standard SPP
-    // UUID did not work for your printer's GATT service. You need the specific one.
+    // CRITICAL: THESE UUIDs ARE PLACEHOLDERS.
+    // You MUST find the correct GATT Service and Characteristic UUIDs for *your specific printer model*
+    // from its technical/programming documentation if it supports BLE/GATT for printing.
+    // The standard SPP UUID ('00001101-...') is for Bluetooth Classic and will NOT work with Web Bluetooth.
+    // If your printer is Bluetooth Classic SPP *only*, Web Bluetooth cannot directly print to it.
     // ======================================================================
-    const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE THIS 'xxxx' PLACEHOLDER !!!>>>
-    const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE THIS 'yyyy' PLACEHOLDER !!!>>>
+    const PRINTER_SERVICE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE 'xxxx' (Service) !!!>>>
+    const PRINTER_CHARACTERISTIC_UUID = '0000yyyy-0000-1000-8000-00805f9b34fb'; // <<<!!! CRITICAL: REPLACE 'yyyy' (Characteristic) !!!>>>
     // ======================================================================
 
     try {
       device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true, 
-        // If you find the correct PRINTER_SERVICE_UUID, add it to optionalServices like this:
+        // If you find the correct PRINTER_SERVICE_UUID for your BLE-compatible printer, add it here:
         // optionalServices: [PRINTER_SERVICE_UUID], 
-        // For now, acceptAllDevices is used for broader discovery.
-        // Using the placeholder in optionalServices will likely lead to "Origin not allowed"
-        // if the placeholder itself isn't a valid format, or no device has it.
-        // So, if PRINTER_SERVICE_UUID is still a placeholder, it's better to omit optionalServices
-        // or ensure acceptAllDevices doesn't cause permission issues with a bad optionalServices value.
-        // Let's use a conditional optionalServices:
+        // Using a placeholder 'xxxx' here will likely cause "Origin not allowed" or "Invalid Service name" errors.
+        // Use acceptAllDevices: true for initial discovery if unsure.
         ...(PRINTER_SERVICE_UUID !== '0000xxxx-0000-1000-8000-00805f9b34fb' && { optionalServices: [PRINTER_SERVICE_UUID] })
       });
 
@@ -198,15 +204,15 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         setIsBluetoothPrinting(false);
         return;
       }
-      console.log('Selected Bluetooth device:', device); // Added for debugging
+      console.log('Selected Bluetooth device:', device); 
 
       toast({ title: "Bluetooth Printing", description: `Connecting to "${device.name || device.id}"...` });
       if (!device.gatt) {
         toast({ 
           title: "Bluetooth Connection Error", 
-          description: "Selected device does not support GATT. This printer might use Bluetooth Classic SPP, which isn't directly accessible for raw data via Web Bluetooth. Ensure printer is on, in range, and paired if necessary. Consult printer manual for BLE/GATT compatibility.", 
+          description: "Selected device does not support GATT. This printer might use Bluetooth Classic SPP, which isn't directly accessible for raw data via Web Bluetooth's GATT services. Ensure printer is ON, in range, and paired if necessary. Consult printer manual for BLE/GATT compatibility.", 
           variant: "destructive",
-          duration: 10000 
+          duration: 15000 
         });
         setIsBluetoothPrinting(false);
         return;
@@ -216,8 +222,10 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       toast({ title: "Bluetooth Printing", description: "Connected to GATT Server! Discovering services..." });
       
       toast({ title: "Bluetooth Printing", description: `Attempting to get service with UUID: ${PRINTER_SERVICE_UUID}`});
+      // The following line will likely fail if PRINTER_SERVICE_UUID is still the 'xxxx' placeholder or incorrect for your BLE printer
       const primaryService = await server.getPrimaryService(PRINTER_SERVICE_UUID);
       toast({ title: "Bluetooth Printing", description: `Service found! Attempting to get characteristic: ${PRINTER_CHARACTERISTIC_UUID}`});
+      // This will also fail if PRINTER_CHARACTERISTIC_UUID is the 'yyyy' placeholder or incorrect
       const characteristic = await primaryService.getCharacteristic(PRINTER_CHARACTERISTIC_UUID);
       toast({ title: "Bluetooth Printing", description: `Characteristic found! Preparing to send data...`});
 
@@ -230,30 +238,31 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
         escPosCommands = combined;
       };
       
+      // Example ESC/POS Commands (THESE ARE GENERIC - YOU NEED PRINTER-SPECIFIC ONES)
       // Initialize printer (ESC @)
       appendBytes(new Uint8Array([0x1B, 0x40])); 
       
-      // Convert gate pass content to bytes (ensure your text formatting here uses \n for new lines)
-      const textToPrint = gatePassContent.replace(/\\n/g, '\n'); 
+      // Convert gate pass content to bytes
+      const textToPrint = gatePassContent.replace(/\\n/g, '\n'); // Ensure newlines are actual \n
       appendBytes(encoder.encode(textToPrint));
-      appendBytes(new Uint8Array([0x0A])); 
+      appendBytes(new Uint8Array([0x0A])); // Line feed
 
       // Placeholder for QR Code printing via ESC/POS
-      // Many printers have a command like: GS ( k <Function 167 or 169 for QR>
-      // Example: GS ( k pL pH cn fn m d1...dk
-      // You'll need to find the exact command sequence for AT-402 and convert qrCodeData.
-      // This is highly printer-specific.
-      // For now, printing the QR data as text as a fallback.
-      appendBytes(encoder.encode("\n[QR Code Data (Text)]\n"));
+      // This is highly printer-specific. Find the command for your Atpos AT-402.
+      // Example: GS ( k <pL> <pH> <cn> <fn> <m> d1...dk
+      // For now, printing the QR data as text as a fallback if direct QR command is unknown.
+      appendBytes(encoder.encode("\n[QR Code Data (Requires printer command)]\n"));
       appendBytes(encoder.encode(`ID: ${qrCodeData}\n`));
       appendBytes(new Uint8Array([0x0A, 0x0A])); // Some spacing
 
       // Cut paper (GS V B 0 - full cut, or GS V m for partial cut)
+      // Example: Full cut
       appendBytes(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); 
       
       console.log("Prepared ESC/POS Commands (Hex):", Array.from(escPosCommands).map(b => b.toString(16).padStart(2, '0')).join(' '));
       console.log("Attempting to send to characteristic:", characteristic.uuid);
       
+      // Actually send the data
       await characteristic.writeValueWithResponse(escPosCommands);
       
       toast({ title: "Bluetooth Printing Successful", description: `Data sent to "${device.name || device.id}"!` });
@@ -262,13 +271,13 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       console.error("Bluetooth Print Error:", error);
       let errorMessage = `Failed: ${error.message || "Unknown error"}`;
       if (error.name === 'NotFoundError' && error.message.includes("getPrimaryService")) {
-        errorMessage = `Service UUID Error: Could not find service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. This means the Service UUID placeholder ('xxxx') IS STILL INCORRECT or the printer does not expose this service via GATT. YOU MUST REPLACE 'xxxx' with the correct Service UUID from your Atpos AT-402 printer's technical documentation. The standard SPP UUID (00001101-...) did not work.`;
+        errorMessage = `Service UUID Error: Could not find service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. This means the Service UUID placeholder ('xxxx') IS STILL INCORRECT or the printer does not expose this service via GATT. YOU MUST REPLACE 'xxxx' with the correct Service UUID from your Atpos AT-402 printer's technical documentation for BLE/GATT printing, if supported. The standard SPP UUID (00001101-...) did not work.`;
       } else if (error.name === 'NotFoundError' && error.message.includes("getCharacteristic")) {
-        errorMessage = `Characteristic UUID Error: Could not find characteristic '${PRINTER_CHARACTERISTIC_UUID}' (the one with 'yyyy') for service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. YOU MUST REPLACE THE 'yyyy' PLACEHOLDER with the correct Characteristic UUID from your Atpos AT-402 printer's technical documentation for the specified service.`;
+        errorMessage = `Characteristic UUID Error: Could not find characteristic '${PRINTER_CHARACTERISTIC_UUID}' (the one with 'yyyy') for service '${PRINTER_SERVICE_UUID}' on device '${device?.name || 'Unknown'}'. YOU MUST REPLACE THE 'yyyy' PLACEHOLDER with the correct Characteristic UUID from your Atpos AT-402 printer's technical documentation for the specified BLE/GATT service.`;
       } else if (error.name === 'NotFoundError') {
         errorMessage = "Device Selection Error: No Bluetooth devices found/selected or operation cancelled. Ensure printer is on, discoverable, and in range.";
       } else if (error.name === 'NotAllowedError') {
-         errorMessage = "Permission Error: Bluetooth access denied by user or browser policy. Ensure permissions are granted and the Service UUID was included in 'optionalServices' during device request if not using acceptAllDevices with a specific filter.";
+         errorMessage = "Permission Error: Bluetooth access denied by user or browser policy. Ensure permissions are granted and the Service UUID was included in 'optionalServices' during device request if it's not a placeholder and refers to a valid BLE service.";
       } else if (error.name === 'SecurityError') {
         errorMessage = "Security Error: Bluetooth connection failed. Ensure page is HTTPS.";
       } else if (error.message && error.message.includes("GATT operation already in progress")) {
@@ -276,16 +285,16 @@ export function GatePassModal({ isOpen, onClose, gatePassContent, qrCodeData, sh
       } else if (error.message && error.message.toLowerCase().includes("user cancelled")) {
         errorMessage = "User Action: Device selection cancelled.";
       } else if (error.message && (error.message.toLowerCase().includes("connection attempt failed") || error.message.toLowerCase().includes("gatt server disconnected"))) {
-         errorMessage = `Connection Error: Failed to connect to "${device?.name || 'the printer'}". Ensure printer is ON, in range, paired (if required by printer), and not connected to another app/device. It might also be a Bluetooth Classic (SPP) device not fully compatible with Web Bluetooth's GATT connection. Try restarting the printer and Bluetooth on your computer/tablet.`;
+         errorMessage = `Connection Error: Failed to connect to "${device?.name || 'the printer'}" GATT server. Ensure printer is ON, in range, paired (if required by printer), and not connected to another app/device. If it's a Bluetooth Classic SPP-only printer, this Web Bluetooth method will not work. Try the 'Print (Standard)' option for system-paired printers.`;
       } else if (error.message && error.message.toLowerCase().includes("origin is not allowed to access any service")) {
-        errorMessage = `Permission Error: Origin not allowed to access service. Ensure the service UUID ('${PRINTER_SERVICE_UUID}') is included in 'optionalServices' in the requestDevice() options if it's not a placeholder.`;
+        errorMessage = `Permission Error: Origin not allowed to access service. Ensure the service UUID ('${PRINTER_SERVICE_UUID}') is included in 'optionalServices' in the requestDevice() options if it's a valid BLE service UUID and not a placeholder.`;
       } else if (error.message && error.message.toLowerCase().includes("invalid service name")) {
-        errorMessage = `Invalid Service UUID format: The Service UUID '${PRINTER_SERVICE_UUID}' is not in a valid format. It should be a full 128-bit UUID string (e.g., '0000xxxx-0000-1000-8000-00805f9b34fb') or a recognized 16-bit alias (e.g., 'heart_rate'). Ensure 'xxxx' is replaced.`;
+        errorMessage = `Invalid Service UUID format: The Service UUID '${PRINTER_SERVICE_UUID}' is not in a valid format. It should be a full 128-bit UUID string (e.g., '0000xxxx-0000-1000-8000-00805f9b34fb') or a recognized 16-bit alias (e.g., 'heart_rate'). Ensure 'xxxx' is replaced if it's a BLE-compatible printer.`;
       }
       toast({ title: "Bluetooth Print Error", description: errorMessage, variant: "destructive", duration: 15000 });
     } finally {
       if (device && device.gatt && device.gatt.connected) {
-        // device.gatt.disconnect(); // Consider if you want to disconnect after printing
+        // device.gatt.disconnect(); // Consider if you want to disconnect immediately or allow multiple prints.
         // console.log("Disconnected from GATT Server.");
       }
       setIsBluetoothPrinting(false);
